@@ -433,7 +433,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 // ════ Supabase 설정 ════
 // 아래 두 값을 본인 Supabase 프로젝트의 값으로 교체하세요
 const SUPA_URL = 'https://fkjjbgontwvznouxsmjl.supabase.co';
-const SUPA_KEY = 'sb_publishable_dz-n82-UGp6VqF2tDm9W7Q_4x-uwdmG';
+const SUPA_KEY = 'sb_publishable_dz-n82-UGp6VqF2tDm9W7Q_4x-uwdmG'; // 재발급한 키 입력
 
 const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
 
@@ -519,19 +519,38 @@ async function saveChildToCloud(data, editId) {
 async function saveSessionToCloud(sessionData) {
   if (!IS_ONLINE) return;
   try {
+    // student_id가 UUID인지 확인 (로컬 임시 ID 'c123...' 형식이면 스킵)
+    const sid = sessionData.childId;
+    if (!sid || sid.startsWith('c') && sid.length < 20) {
+      console.warn('saveSession: student_id가 UUID가 아님, 스킵');
+      return;
+    }
+    // session_records에 content로 전체 저장 (upsert: session_date+student_id 기준)
     const row = {
-      id: sessionData.id,
-      student_id: sessionData.childId,
+      student_id: sid,
       session_date: sessionData.date,
       content: sessionData,
-      therapist: sessionData.therapist,
-      duration: sessionData.duration,
-      condition: sessionData.condition,
+      therapist: sessionData.therapist || '',
+      duration: String(sessionData.duration || '40'),
+      condition: sessionData.condition || '보통',
       updated_at: new Date().toISOString()
     };
-    const { error } = await supa.from('session_records')
-      .upsert(row, { onConflict: 'id' });
-    if (error) throw error;
+    // 같은 날짜+아동 기록이 있으면 업데이트, 없으면 insert
+    const { data: existing } = await supa
+      .from('session_records')
+      .select('id')
+      .eq('student_id', sid)
+      .eq('session_date', sessionData.date)
+      .eq('content->>id', sessionData.id);
+    
+    if (existing && existing.length > 0) {
+      const { error } = await supa.from('session_records')
+        .update(row).eq('id', existing[0].id);
+      if (error) throw error;
+    } else {
+      const { error } = await supa.from('session_records').insert(row);
+      if (error) throw error;
+    }
   } catch(e) { console.warn('saveSession 실패:', e); }
 }
 
@@ -568,9 +587,12 @@ async function loadAllSessionsFromCloud(studentId) {
     data.forEach(row => {
       const sess = row.content;
       if (!sess) return;
-      const dateStr = row.session_date;
+      // session_date가 '2026-04-21T00:00:00' 형식일 수 있으므로 앞 10자만 사용
+      const dateStr = (row.session_date || '').slice(0, 10);
+      if (!dateStr) return;
+      // sess.childId가 없으면 student_id로 채움
+      if (!sess.childId) sess.childId = row.student_id;
       if (!DB.sessionArchive[dateStr]) DB.sessionArchive[dateStr] = [];
-      // 중복 방지: 같은 id면 덮어쓰기
       const idx = DB.sessionArchive[dateStr].findIndex(s=>s.id===sess.id);
       if (idx !== -1) DB.sessionArchive[dateStr][idx] = sess;
       else DB.sessionArchive[dateStr].push(sess);
@@ -1769,6 +1791,7 @@ function renderHist() {
   const b=document.getElementById('histBody');
   if(!S.child){b.innerHTML='<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text3)">아동을 선택해주세요</td></tr>';return;}
   // sessionArchive 우선, 없으면 sessions 배열
+  // sessionArchive 키 정규화 (날짜 포맷 통일)
   const allArchive = Object.values(DB.sessionArchive).flat();
   const fromSessions = DB.sessions.filter(s=>!allArchive.find(a=>a.id===s.id));
   const sess = [...allArchive, ...fromSessions]
@@ -1879,18 +1902,32 @@ async function saveChild() {
     note:document.getElementById('nc-note').value
   };
 
-  // Supabase 저장 (온라인이면)
-  const cloudId = await saveChildToCloud(data, editId||null);
-
-  if(editId){
-    const idx=DB.children.findIndex(c=>c.id===editId);
-    if(idx!==-1) DB.children[idx]={...DB.children[idx],...data};
-    showToast('수정됐습니다' + (IS_ONLINE?' (클라우드 저장됨)':''),'ok');
+  if (IS_ONLINE) {
+    // 온라인: 클라우드 먼저 저장 → 완료 후 로컬 반영
+    showToast('저장 중...','ok');
+    const cloudId = await saveChildToCloud(data, editId||null);
+    if (!cloudId && !editId) {
+      showToast('클라우드 저장 실패. 다시 시도해주세요','err');
+      return;
+    }
+    if (editId) {
+      const idx=DB.children.findIndex(c=>c.id===editId);
+      if(idx!==-1) DB.children[idx]={...DB.children[idx],...data};
+      showToast(`${name} 수정됐습니다 ☁️`,'ok');
+    } else {
+      DB.children.push({id:cloudId,...data});
+      showToast(`${name} 추가됐습니다 ☁️`,'ok');
+    }
   } else {
-    // 클라우드에서 받은 UUID 사용, 오프라인이면 임시 ID
-    const newId = cloudId || ('c'+Date.now());
-    DB.children.push({id:newId,...data});
-    showToast(`${name} 추가됐습니다` + (IS_ONLINE?' (클라우드 저장됨)':''),'ok');
+    // 오프라인: 로컬에만 임시 저장
+    if (editId) {
+      const idx=DB.children.findIndex(c=>c.id===editId);
+      if(idx!==-1) DB.children[idx]={...DB.children[idx],...data};
+      showToast('수정됐습니다 (오프라인)');
+    } else {
+      DB.children.push({id:'c'+Date.now(),...data});
+      showToast(`${name} 추가됐습니다 (오프라인 — 연결 후 재저장 필요)`);
+    }
   }
   save();renderChildSel();renderKids();closeModal('childModal');
 }
