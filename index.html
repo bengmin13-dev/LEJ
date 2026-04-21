@@ -248,7 +248,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
       <div class="topbar-title">세션 기록</div>
       <div class="topbar-meta" id="rec-meta">아동을 선택해주세요</div>
     </div>
-    <div style="display:flex;gap:6px">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span id="autoSaveIndicator" style="font-size:10px;color:var(--text3)"></span>
       <button class="btn btn-ghost btn-sm" onclick="resetBoard()">↺ 초기화</button>
       <button class="btn btn-primary btn-sm" onclick="saveSess()">💾 저장</button>
     </div>
@@ -531,13 +532,28 @@ async function saveSessionToCloud(sessionData) {
       updated_at: new Date().toISOString()
     };
 
-    // 단순 insert — 매 저장마다 새 행 추가
-    const { error } = await supa.from('session_records').insert(row);
-    if (error) {
-      console.error('saveSession 에러:', error);
-      throw error;
+    // 일자별 단일 저장: 같은 날짜+아동 기록이 있으면 UPDATE, 없으면 INSERT
+    const { data: existing, error: selErr } = await supa
+      .from('session_records')
+      .select('id')
+      .eq('student_id', sid)
+      .eq('session_date', sessionData.date)
+      .limit(1);
+
+    if (selErr) throw selErr;
+
+    if (existing && existing.length > 0) {
+      // 덮어쓰기 (같은 날짜 기록 업데이트)
+      const { error } = await supa.from('session_records')
+        .update(row)
+        .eq('id', existing[0].id);
+      if (error) throw error;
+    } else {
+      // 새 날짜 → insert
+      const { error } = await supa.from('session_records').insert(row);
+      if (error) throw error;
     }
-    console.log('세션 클라우드 저장 성공');
+    console.log('세션 클라우드 저장 성공 (일자별 단일)');
   } catch(e) { console.warn('saveSession 실패:', e); }
 }
 
@@ -833,7 +849,8 @@ let S = {
   pickerOpen: false,
   progTab: 'peak',
   charts: {},
-  editingSessionId: null,   // 덮어쓰기 대상 세션 ID
+  editingSessionId: null,
+  undoStack: [],   // [{code, stoIdx, trialsCopy, blocksCopy}]
 };
 
 // ════ 초기화 ════
@@ -927,9 +944,10 @@ function buildVbmappPicker() {
   const w = document.getElementById('vbmappLevels');
   w.innerHTML = VBMAPP_AREAS.map(area => {
     const chips = Object.entries(area.levels).flatMap(([lv, progs]) =>
-      progs.map(p =>
-        `<div class="chip" id="ch-${p.c}" onclick="toggleProg('${p.c}','${p.n.replace(/'/g,"\'")}','vbmapp')" title="${p.n}">${p.c}</div>`
-      )
+      progs.map(p => {
+        const safeName = p.n.replace(/'/g,"\'").replace(/"/g,'&quot;');
+        return `<div class="chip" id="ch-${p.c}" onclick="toggleProg('${p.c}','${safeName}','vbmapp')" title="${p.n}">${p.c}</div>`;
+      })
     ).join('');
     return `<div class="lv-row">
       <span class="lv-lbl" style="min-width:52px;font-size:10px">${area.short}</span>
@@ -959,11 +977,11 @@ function toggleProg(code, name, source) {
       : source==='vbmapp'
       ? VBMAPP_FLAT.find(x=>x.c===code)
       : (DB.customPrograms||[]).find(x=>x.c===code);
-    // custom_sto 우선: DB.customStos에 있으면 그것을 사용
+    // custom_sto 우선 (세션 내 변경은 DB.customStos에만, 마스터 원본 불변)
     const baseStos = DB.customStos[code]
-      ? DB.customStos[code]
-      : (lto?.stos||['기본 STO']).map(sn => typeof sn==='string'?sn:sn.name);
-    const stos = baseStos.map(sn => ({ name:sn, trials:[], blocks:[] }));
+      ? [...DB.customStos[code]]  // 복사본 사용
+      : (lto?.stos||['기본 STO']).map(sn => typeof sn==='string'?sn:(sn.name||'STO'));
+    const stos = baseStos.map(sn => ({ name:sn, trials:Array(10).fill(null), blocks:[], memo:'' }));
     S.board[code] = { code, name, source, stos, currentSto:0, memo:'' };
     chip?.classList.add('on');
     if (!S.current) S.current = code;
@@ -1022,10 +1040,21 @@ function selectProg(code) {
 }
 
 function saveMemo() {
-  if (S.current && S.board[S.current]) {
-    const m = document.getElementById('rec-memo');
-    if (m) S.board[S.current].memo = m.value;
+  if (!S.current || !S.board[S.current]) return;
+  const p = S.board[S.current];
+  const stoIdx = p.currentSto || 0;
+  // STO별 메모 저장
+  const m = document.getElementById('rec-memo');
+  if (m && p.stos[stoIdx]) {
+    if (!p.stos[stoIdx].memo) p.stos[stoIdx].memo = '';
+    p.stos[stoIdx].memo = m.value;
   }
+}
+
+function saveMemoInline(code, stoIdx, val) {
+  const p = S.board[code]; if (!p) return;
+  if (p.stos[stoIdx]) p.stos[stoIdx].memo = val;
+  autoSave();
 }
 
 // ════ 기록 패널 렌더 ════
@@ -1166,15 +1195,15 @@ function renderRecPanel() {
       <!-- 조작 버튼 -->
       <div class="rec-sum">
         <span>${[...curSto.trials,...(curSto.blocks||[]).flat()].filter(t=>t).length}회 기록</span>
-        <button class="btn btn-ghost btn-sm" style="margin-left:auto;padding:2px 8px;font-size:10px" onclick="undoLast()">↩ 취소</button>
+        <button class="btn btn-ghost btn-sm" style="margin-left:auto;padding:2px 8px;font-size:10px" onclick="undoLast()" title="마지막 입력 취소">↩ 실행취소</button>
         <button class="btn btn-ghost btn-sm" style="padding:2px 8px;font-size:10px" onclick="clearCur()">초기화</button>
       </div>
     </div>
 
     <input type="text" id="rec-memo" class="memo-input"
-      placeholder="메모 (강화물, 촉구, 특이사항...)"
-      value="${p.memo||''}"
-      onchange="S.board['${p.code}'].memo=this.value">
+      placeholder="강화제 및 메모 (이 STO에만 저장됨)..."
+      value="${curSto.memo||''}"
+      onchange="saveMemoInline('${p.code}',${curStoIdx},this.value)">
   </div>`;
 }
 
@@ -1252,6 +1281,14 @@ function inputScore(score) {
   const sto = p.stos[p.currentSto||0];
   if (!sto) return;
 
+  // undo 스냅샷 저장 (최대 30개)
+  S.undoStack.push({
+    code: S.current, stoIdx: p.currentSto||0,
+    trials: [...sto.trials],
+    blocks: (sto.blocks||[]).map(b=>[...b])
+  });
+  if (S.undoStack.length > 30) S.undoStack.shift();
+
   // 메인 블록 먼저
   if (sto.trials.filter(t=>t).length < 10) {
     const idx = sto.trials.findIndex(t=>!t);
@@ -1275,6 +1312,7 @@ function inputScore(score) {
 
   renderTabs();
   renderRecPanel();
+  autoSave();
 }
 
 // ════ 칸 클릭 (지우기) ════
@@ -1305,23 +1343,16 @@ function addBlock() {
 }
 
 function undoLast() {
-  const p = S.board[S.current];
-  if (!p) return;
-  const sto = p.stos[p.currentSto||0];
-  if (!sto) return;
-
-  // 마지막 블록부터 역순으로
-  if (sto.blocks?.length) {
-    const lastBlk = sto.blocks[sto.blocks.length-1];
-    for (let i=9;i>=0;i--) {
-      if (lastBlk[i]) { lastBlk[i]=null; renderTabs(); renderRecPanel(); return; }
-    }
-    // 빈 블록이면 제거
-    sto.blocks.pop();
-  }
-  for (let i=9;i>=0;i--) {
-    if (sto.trials[i]) { sto.trials[i]=null; renderTabs(); renderRecPanel(); return; }
-  }
+  if (!S.undoStack.length) { showToast('되돌릴 항목이 없습니다'); return; }
+  const snap = S.undoStack.pop();
+  const p = S.board[snap.code]; if (!p) return;
+  const sto = p.stos[snap.stoIdx]; if (!sto) return;
+  sto.trials = snap.trials;
+  sto.blocks = snap.blocks;
+  S.current = snap.code;
+  p.currentSto = snap.stoIdx;
+  renderTabs(); renderRecPanel();
+  showToast('↩ 실행 취소');
 }
 
 function clearCur() {
@@ -1450,6 +1481,65 @@ function resetBoard() {
   showToast('초기화되었습니다');
 }
 
+// ════ 자동저장 ════
+let autoSaveTimer = null;
+function autoSave() {
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(async () => {
+    if (!S.child) return;
+    const dateStr = document.getElementById('sDate')?.value;
+    if (!dateStr) return;
+    // 프로그램이 하나라도 추가되어 있으면 저장 (기록 없어도)
+    const progs = Object.values(S.board);
+    if (!progs.length) return;
+
+    const sessionData = buildSessionData();
+    if (!sessionData) return;
+
+    // 로컬 저장
+    if (!DB.sessionArchive[dateStr]) DB.sessionArchive[dateStr] = [];
+    const existing = DB.sessionArchive[dateStr].findIndex(
+      s => s.childId === S.child.id && s.id === sessionData.id
+    );
+    if (existing !== -1) DB.sessionArchive[dateStr][existing] = sessionData;
+    else DB.sessionArchive[dateStr].push(sessionData);
+    save();
+
+    // 클라우드 저장
+    if (IS_ONLINE) await saveSessionToCloud(sessionData);
+
+    // 상태 표시
+    const indicator = document.getElementById('autoSaveIndicator');
+    if (indicator) {
+      indicator.textContent = IS_ONLINE ? '✓ 자동저장됨 ☁️' : '✓ 자동저장됨 (로컬)';
+      indicator.style.color = 'var(--green)';
+      setTimeout(() => { if(indicator) indicator.textContent=''; }, 3000);
+    }
+  }, 2000); // 2초 후 자동저장
+}
+
+function buildSessionData() {
+  if (!S.child) return null;
+  const dateStr = document.getElementById('sDate')?.value;
+  const progs = Object.values(S.board);
+  if (!progs.length) return null;
+
+  return {
+    id: S.editingSessionId || ('s_' + S.child.id + '_' + (document.getElementById('sDate')?.value||'').replace(/-/g,'')),
+    childId: S.child.id,
+    date: dateStr,
+    therapist: document.getElementById('sTherapist')?.value||'미입력',
+    duration: document.getElementById('sDur')?.value||'40',
+    condition: document.getElementById('sCond')?.value||'보통',
+    programs: progs.map(p=>({
+      code:p.code, name:p.name, source:p.source,
+      stos: p.stos.map(s=>({name:s.name, trials:[...s.trials], blocks:(s.blocks||[]).map(b=>[...b]), memo:s.memo||''})),
+      memo:p.memo||''
+    })),
+    savedAt: new Date().toISOString()
+  };
+}
+
 // ════ 세션 저장 ════
 async function saveSess() {
   if (!S.child) { showToast('아동을 선택해주세요','err'); return; }
@@ -1459,20 +1549,8 @@ async function saveSess() {
   );
   if (!progs.length) { showToast('기록된 데이터가 없습니다','err'); return; }
   const dateStr = document.getElementById('sDate').value;
-  const sessionData = {
-    id: S.editingSessionId || ('s'+Date.now()),
-    childId: S.child.id,
-    date: dateStr,
-    therapist: document.getElementById('sTherapist').value||'미입력',
-    duration: document.getElementById('sDur').value,
-    condition: document.getElementById('sCond').value,
-    programs: progs.map(p=>({
-      code:p.code, name:p.name, source:p.source,
-      stos: p.stos.map(s=>({name:s.name, trials:[...s.trials], blocks:[...(s.blocks||[]).map(b=>[...b])]})),
-      memo:p.memo
-    })),
-    savedAt: new Date().toISOString()
-  };
+  const sessionData = buildSessionData();
+  if (!sessionData) { showToast('저장 오류','err'); return; }
 
   // sessionArchive 날짜별 저장 (덮어쓰기 지원)
   if (!DB.sessionArchive[dateStr]) DB.sessionArchive[dateStr] = [];
@@ -1493,11 +1571,17 @@ async function saveSess() {
   S.editingSessionId = null;
   save();
 
-  // Supabase 클라우드 저장
+  // Supabase 클라우드 저장 (일자별 단일)
   if (IS_ONLINE) {
     await saveSessionToCloud(sessionData);
-    showToast('클라우드 저장 완료 ☁️','ok');
+    showToast('저장 완료 ☁️','ok');
+  } else {
+    showToast('로컬 저장 완료','ok');
   }
+  S.editingSessionId = sessionData.id; // 이후 자동저장도 같은 ID로
+  // 저장 버튼 원복
+  const saveBtn = document.querySelector('[onclick="saveSess()"]');
+  if (saveBtn) { saveBtn.textContent='💾 저장'; saveBtn.style.background=''; }
 }
 
 // ════ 프로그램 편집 페이지 ════
@@ -1564,7 +1648,7 @@ function buildLTOCard(lto, source) {
     <div class="lto-head" onclick="toggleLTO('${lto.c}')">
       <span class="lto-toggle" id="lto-toggle-${lto.c}">▶</span>
       <span class="lto-code">${lto.c}</span>
-      <span class="lto-name-text">${lto.n}</span>
+      <span class="lto-name-text">${lto.n.replace(/"/g,'&quot;')}</span>
       <span class="lto-source" style="${hasCustom?'border-color:var(--amber);color:var(--amber)':''}">${sourceLabel}${hasCustom?' ✎':''}</span>
       ${source==='custom'
         ? `<button class="btn btn-danger btn-sm" style="padding:2px 7px;font-size:10px;margin-left:4px"
