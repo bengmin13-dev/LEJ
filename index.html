@@ -572,14 +572,22 @@ async function loadAllSessionsFromCloud(studentId) {
       .eq('student_id', studentId)
       .order('session_date', { ascending: false });
     if (error || !data) return;
+
+    // 이 아동의 기존 로컬 세션 데이터 먼저 제거 (아동 혼재 방지)
+    Object.keys(DB.sessionArchive).forEach(dateStr => {
+      DB.sessionArchive[dateStr] = DB.sessionArchive[dateStr]
+        .filter(s => s.childId !== studentId);
+      if (!DB.sessionArchive[dateStr].length)
+        delete DB.sessionArchive[dateStr];
+    });
+
+    // 클라우드 데이터로 채우기
     data.forEach(row => {
       const sess = row.content;
       if (!sess) return;
-      // session_date가 '2026-04-21T00:00:00' 형식일 수 있으므로 앞 10자만 사용
       const dateStr = (row.session_date || '').slice(0, 10);
       if (!dateStr) return;
-      // sess.childId가 없으면 student_id로 채움
-      if (!sess.childId) sess.childId = row.student_id;
+      sess.childId = studentId; // student_id로 강제 지정
       if (!DB.sessionArchive[dateStr]) DB.sessionArchive[dateStr] = [];
       const idx = DB.sessionArchive[dateStr].findIndex(s=>s.id===sess.id);
       if (idx !== -1) DB.sessionArchive[dateStr][idx] = sess;
