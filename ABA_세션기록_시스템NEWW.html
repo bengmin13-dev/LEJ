@@ -1,0 +1,1906 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ABA 세션 기록</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=DM+Mono:wght@400;500&display=swap');
+:root{
+  --bg:#0f1117;--bg2:#171b26;--bg3:#1e2333;--bg4:#252a3a;
+  --border:#2a3045;--border2:#374060;
+  --text:#e8ecf4;--text2:#8b94b0;--text3:#4e5775;
+  --accent:#4f8ef7;--green:#34d48a;--amber:#f5a623;--red:#f05656;--purple:#9b6dff;
+  --font:'Noto Sans KR',sans-serif;--mono:'DM Mono',monospace;
+  --r:10px;--rl:14px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;font-size:14px}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.app{display:flex;height:100vh;overflow:hidden}
+
+/* ── 사이드바 ── */
+.sb{width:220px;min-width:220px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.sb-top{padding:16px 14px 12px;border-bottom:1px solid var(--border)}
+.sb-logo{font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--accent);text-transform:uppercase}
+.sb-sub{font-size:10px;color:var(--text3);margin-top:2px}
+.sb-child{padding:10px 14px;border-bottom:1px solid var(--border)}
+.sb-child label{font-size:10px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);display:block;margin-bottom:4px}
+.sb-child select{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:6px 8px;font-size:12px;font-family:var(--font);outline:none;cursor:pointer}
+.sb-child select:focus{border-color:var(--accent)}
+.sb-nav{flex:1;overflow-y:auto;padding:6px 0}
+.nav-lbl{font-size:10px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);padding:8px 14px 3px}
+.nav-item{display:flex;align-items:center;gap:8px;padding:8px 14px;cursor:pointer;border-left:2px solid transparent;font-size:12px;color:var(--text2);transition:all .15s}
+.nav-item:hover{background:var(--bg3);color:var(--text)}
+.nav-item.active{background:rgba(79,142,247,.1);color:var(--accent);border-left-color:var(--accent)}
+.sb-foot{padding:8px 14px;border-top:1px solid var(--border);font-size:10px;color:var(--text3)}
+
+/* ── 공통 ── */
+.main{flex:1;overflow-y:auto;display:flex;flex-direction:column}
+.topbar{background:var(--bg2);border-bottom:1px solid var(--border);padding:11px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.topbar-title{font-size:14px;font-weight:500}
+.topbar-meta{font-size:11px;color:var(--text3)}
+.content{padding:16px 20px;flex:1}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:var(--r);font-size:12px;font-family:var(--font);font-weight:500;cursor:pointer;border:none;outline:none;transition:all .15s}
+.btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:#3d7de8}
+.btn-ghost{background:transparent;color:var(--text2);border:1px solid var(--border)}.btn-ghost:hover{background:var(--bg3);color:var(--text)}
+.btn-danger{background:rgba(240,86,86,.15);color:var(--red);border:1px solid rgba(240,86,86,.3)}.btn-danger:hover{background:rgba(240,86,86,.25)}
+.btn-sm{padding:4px 9px;font-size:11px}
+.hidden{display:none!important}
+.fade-in{animation:fi .2s ease}
+@keyframes fi{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── 세션 헤더 ── */
+.sess-head{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);padding:12px 16px;margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.sess-head input,.sess-head select{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:5px 8px;font-size:12px;font-family:var(--font);outline:none}
+.sess-head input:focus,.sess-head select:focus{border-color:var(--accent)}
+.sess-head input[type=date]{min-width:120px}
+.sess-head input[type=text]{min-width:90px}
+
+/* ── 프로그램 선택기 ── */
+.picker{background:var(--bg2);border:1px dashed var(--border2);border-radius:var(--rl);padding:12px 16px;margin-bottom:12px}
+.picker-title{font-size:10px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);margin-bottom:8px}
+.lv-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-bottom:4px}
+.lv-lbl{font-size:10px;font-family:var(--mono);color:var(--text3);min-width:26px}
+.chip{padding:3px 8px;border-radius:5px;font-size:11px;font-family:var(--mono);cursor:pointer;border:1px solid var(--border);color:var(--text3);background:var(--bg3);transition:all .1s;user-select:none}
+.chip:hover{border-color:var(--border2);color:var(--text)}
+.chip.on{background:rgba(79,142,247,.15);border-color:rgba(79,142,247,.5);color:var(--accent)}
+.picker-tabs{display:flex;gap:4px;margin-bottom:10px}
+.picker-tab{padding:5px 12px;border-radius:6px;font-size:11px;cursor:pointer;border:1px solid var(--border);color:var(--text3);background:var(--bg3);transition:all .1s}
+.picker-tab.on{background:rgba(79,142,247,.15);border-color:rgba(79,142,247,.5);color:var(--accent)}
+
+/* ── 탭 스트립 ── */
+.tab-strip{display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);margin-bottom:10px}
+.prog-tab{display:flex;align-items:center;gap:5px;padding:6px 11px;border-radius:8px;border:1.5px solid var(--border);background:var(--bg3);cursor:pointer;transition:all .12s;user-select:none}
+.prog-tab:hover{border-color:var(--border2)}
+.prog-tab.active{background:rgba(79,142,247,.15);border-color:rgba(79,142,247,.6)}
+.prog-tab.mastery{border-color:rgba(52,212,138,.6);background:rgba(52,212,138,.06)}
+.prog-tab.done-tab{border-color:rgba(79,142,247,.4)}
+.pt-code{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--text2)}
+.prog-tab.active .pt-code{color:var(--accent)}
+.pt-pct{font-size:11px;font-family:var(--mono);font-weight:600}
+.pt-cnt{font-size:10px;color:var(--text3);font-family:var(--mono)}
+
+/* ── 기록 패널 ── */
+.rec-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden}
+.rec-head{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--bg3);border-bottom:1px solid var(--border)}
+.rec-code{font-family:var(--mono);font-size:15px;font-weight:700;color:var(--accent)}
+.rec-name{font-size:13px;color:var(--text2)}
+.rec-pct{font-family:var(--mono);font-size:14px;font-weight:700}
+.rec-body{padding:14px 16px}
+
+/* ── STO 서브 목록 ── */
+.sto-list{margin-bottom:12px}
+.sto-row{display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--border)}
+.sto-row:last-child{border-bottom:none}
+.sto-name{flex:1;font-size:12px;color:var(--text2)}
+.sto-name.active-sto{color:var(--text);font-weight:500}
+.sto-select{cursor:pointer;font-size:11px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--text3)}
+.sto-select.active-sto{border-color:var(--accent);color:var(--accent);background:rgba(79,142,247,.1)}
+
+/* ── + P - 점수 버튼 ── */
+.score-btns{display:flex;gap:6px;margin-bottom:12px}
+.sc{flex:1;padding:12px 4px;border-radius:10px;border:2px solid transparent;font-size:20px;font-weight:700;font-family:var(--mono);cursor:pointer;transition:all .12s;text-align:center;line-height:1}
+.sc span{display:block;font-size:9px;font-weight:400;margin-top:4px;opacity:.75;letter-spacing:.04em}
+.sc:active{transform:scale(.94)}
+.sc-plus{background:rgba(52,212,138,.15);color:var(--green)}.sc-plus:hover{background:rgba(52,212,138,.28)}
+.sc-p{background:rgba(79,142,247,.12);color:var(--accent)}.sc-p:hover{background:rgba(79,142,247,.25)}
+.sc-minus{background:rgba(240,86,86,.15);color:var(--red)}.sc-minus:hover{background:rgba(240,86,86,.28)}
+
+/* ── 10칸 (+ P -) ── */
+.trial-row{display:grid;grid-template-columns:repeat(10,1fr);gap:5px;margin-bottom:10px}
+.tc{aspect-ratio:1;border-radius:7px;border:1.5px solid var(--border);background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;font-family:var(--mono);color:var(--text3);position:relative;transition:all .1s;cursor:pointer}
+.tc:hover{border-color:var(--border2)}
+.tc .tn{position:absolute;top:1px;right:2px;font-size:8px;color:var(--text3)}
+.tc.cursor{border-color:var(--accent)!important;box-shadow:0 0 0 2px rgba(79,142,247,.3)}
+.tc.s-plus{background:rgba(52,212,138,.22);border-color:rgba(52,212,138,.65);color:var(--green)}
+.tc.s-p{background:rgba(79,142,247,.18);border-color:rgba(79,142,247,.5);color:var(--accent)}
+.tc.s-minus{background:rgba(240,86,86,.18);border-color:rgba(240,86,86,.45);color:var(--red)}
+/* 10회 초과 블록 */
+.extra-block{margin-top:6px;padding:6px 0;border-top:1px dashed var(--border2)}
+.extra-label{font-size:10px;color:var(--text3);margin-bottom:4px;font-family:var(--mono)}
+
+/* ── 하단 요약 ── */
+.rec-sum{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text3);border-top:1px solid var(--border);padding-top:8px;margin-top:2px;flex-wrap:wrap}
+.badge{padding:2px 6px;border-radius:4px;font-size:10px;font-weight:500}
+.bg-g{background:rgba(52,212,138,.15);color:var(--green)}
+.bg-b{background:rgba(79,142,247,.15);color:var(--accent)}
+.bg-a{background:rgba(245,166,35,.15);color:var(--amber)}
+.bg-r{background:rgba(240,86,86,.15);color:var(--red)}
+.bg-gray{background:var(--bg3);color:var(--text3)}
+.memo-input{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:6px 9px;font-size:12px;font-family:var(--font);outline:none;margin-top:8px;display:block}
+.memo-input:focus{border-color:var(--accent)}
+
+/* ── 빈 상태 ── */
+.empty-board{text-align:center;padding:36px 20px;color:var(--text3);border:1.5px dashed var(--border);border-radius:var(--rl)}
+.empty-board .ei{font-size:28px;margin-bottom:8px}
+.empty-board p{font-size:12px;line-height:1.9}
+
+/* ══ 프로그램 편집 페이지 ══ */
+.lto-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);margin-bottom:10px;overflow:hidden}
+.lto-head{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--bg3);border-bottom:1px solid var(--border);cursor:pointer}
+.lto-head:hover{background:var(--bg4)}
+.lto-toggle{font-size:10px;color:var(--text3);transition:transform .2s}
+.lto-toggle.open{transform:rotate(90deg)}
+.lto-code{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--accent);min-width:40px}
+.lto-name-text{flex:1;font-size:13px;font-weight:500}
+.lto-source{font-size:10px;color:var(--text3);padding:2px 6px;border-radius:4px;background:var(--bg3);border:1px solid var(--border)}
+.lto-body{padding:10px 14px}
+.sto-item{display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:var(--r);margin-bottom:4px;background:var(--bg3);border:1px solid var(--border)}
+.sto-item-name{flex:1;font-size:12px;color:var(--text2)}
+.sto-item-input{flex:1;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:4px 8px;font-size:12px;font-family:var(--font);outline:none}
+.sto-item-input:focus{border-color:var(--accent)}
+.add-sto-row{display:flex;gap:6px;margin-top:6px}
+.add-sto-input{flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:6px 10px;font-size:12px;font-family:var(--font);outline:none}
+.add-sto-input:focus{border-color:var(--accent)}
+.source-tabs{display:flex;gap:4px;margin-bottom:12px}
+.source-tab{padding:5px 14px;border-radius:6px;font-size:11px;cursor:pointer;border:1px solid var(--border);color:var(--text3);background:var(--bg3);transition:all .1s}
+.source-tab.on{background:rgba(79,142,247,.15);border-color:rgba(79,142,247,.5);color:var(--accent);font-weight:500}
+
+/* ══ 그래프 ══ */
+.sg{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+.sbox{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:12px}
+.slbl{font-size:10px;color:var(--text3);margin-bottom:4px}
+.sval{font-size:22px;font-weight:700;font-family:var(--mono);line-height:1}
+.cc{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);padding:14px 16px;margin-bottom:12px}
+.cc-t{font-size:11px;font-weight:500;color:var(--text2);margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.cc-t .dot{width:5px;height:5px;border-radius:50%;background:var(--accent)}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.cw{position:relative;height:190px}
+.cw2{position:relative;height:230px}
+.pb-row{margin-bottom:8px}
+.pb-head{display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px}
+.pb{height:4px;background:var(--bg3);border-radius:2px;overflow:hidden}
+.pb-fill{height:100%;border-radius:2px;transition:width .5s}
+
+/* ══ 히스토리 ══ */
+.ht{width:100%;border-collapse:collapse;font-size:12px}
+.ht th{text-align:left;padding:6px 10px;font-size:10px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border)}
+.ht td{padding:8px 10px;border-bottom:1px solid var(--border);color:var(--text2);vertical-align:middle}
+.ht tr:hover td{background:var(--bg3);color:var(--text)}
+.ht tr:last-child td{border-bottom:none}
+
+/* ══ 아동 관리 ══ */
+.cg{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+.ccard{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);padding:14px;cursor:pointer;transition:border-color .2s}
+.ccard:hover{border-color:var(--border2)}
+
+/* ══ 모달 ══ */
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:1000;opacity:0;pointer-events:none;transition:opacity .2s}
+.ov.open{opacity:1;pointer-events:all}
+.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--rl);padding:20px;width:500px;max-width:95vw;max-height:85vh;overflow-y:auto;transform:translateY(16px);transition:transform .2s}
+.ov.open .modal{transform:translateY(0)}
+.mh{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.mh h3{font-size:14px;font-weight:500}
+.mx{background:none;border:none;color:var(--text3);cursor:pointer;font-size:17px;padding:3px;line-height:1}
+.mx:hover{color:var(--text)}
+.fg{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
+.fg label{font-size:10px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)}
+.fg input,.fg select,.fg textarea{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:7px 9px;font-size:12px;font-family:var(--font);outline:none}
+.fg input:focus,.fg select:focus,.fg textarea:focus{border-color:var(--accent)}
+
+/* ── 토스트 ── */
+.toast{position:fixed;bottom:18px;right:18px;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r);padding:9px 14px;font-size:12px;z-index:2000;opacity:0;transform:translateY(6px);transition:all .22s;max-width:260px}
+.toast.show{opacity:1;transform:translateY(0)}
+.toast.ok{border-left:3px solid var(--green)}
+.toast.err{border-left:3px solid var(--red)}
+</style>
+</head>
+<body>
+<div class="app">
+
+<div class="sb">
+  <div class="sb-top">
+    <div class="sb-logo">ABA Session</div>
+    <div class="sb-sub">세션 기록 시스템</div>
+  </div>
+  <div class="sb-child">
+    <label>아동</label>
+    <select id="childSel" onchange="onChild(this.value)">
+      <option value="">-- 선택 --</option>
+    </select>
+  </div>
+  <div class="sb-nav">
+    <div class="nav-lbl">메뉴</div>
+    <div class="nav-item active" onclick="go('rec')" id="n-rec">📝 세션 기록</div>
+    <div class="nav-item" onclick="go('programs')" id="n-programs">🎯 프로그램 편집</div>
+    <div class="nav-item" onclick="go('graph')" id="n-graph">📈 진행 그래프</div>
+    <div class="nav-item" onclick="go('hist')" id="n-hist">📋 히스토리</div>
+    <div class="nav-lbl" style="margin-top:8px">관리</div>
+    <div class="nav-item" onclick="go('kids')" id="n-kids">👦 아동 관리</div>
+    <div class="nav-item" onclick="doExport()">💾 내보내기</div>
+  </div>
+  <div class="sb-foot">
+    v4.0 · PEAK + VB-MAPP<br>
+    <span id="syncStatus" style="font-size:10px">🔴 연결 확인 중...</span>
+  </div>
+</div>
+
+<div class="main">
+
+<!-- ══ 세션 기록 ══ -->
+<div id="p-rec" class="fade-in">
+  <div class="topbar">
+    <div>
+      <div class="topbar-title">세션 기록</div>
+      <div class="topbar-meta" id="rec-meta">아동을 선택해주세요</div>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button class="btn btn-ghost btn-sm" onclick="resetBoard()">↺ 초기화</button>
+      <button class="btn btn-primary btn-sm" onclick="saveSess()">💾 저장</button>
+    </div>
+  </div>
+  <div class="content">
+    <div class="sess-head">
+      <input type="date" id="sDate" onchange="onDateChange(this.value)">
+      <input type="text" id="sTherapist" placeholder="치료사" style="width:90px">
+      <select id="sDur">
+        <option value="40">40분</option>
+        <option value="50">50분</option>
+        <option value="80">80분</option>
+      </select>
+      <select id="sCond">
+        <option value="좋음">😊 좋음</option>
+        <option value="보통" selected>😐 보통</option>
+        <option value="나쁨">😞 나쁨</option>
+      </select>
+      <button class="btn btn-ghost btn-sm" onclick="togglePicker()" id="pickerBtn">+ 프로그램 추가</button>
+      <button class="btn btn-ghost btn-sm" onclick="showArchiveForDate()" id="archiveBtn" style="margin-left:auto">📂 기록 불러오기</button>
+    </div>
+    <!-- 날짜 아카이브 패널 -->
+    <div id="archivePanel" class="hidden" style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--rl);padding:12px 16px;margin-bottom:12px">
+      <div style="font-size:11px;font-weight:500;color:var(--text2);margin-bottom:8px">📂 <span id="archiveDateLabel">이 날짜</span>의 저장된 기록</div>
+      <div id="archiveList"></div>
+    </div>
+
+    <!-- 선택기 -->
+    <div class="picker hidden" id="picker">
+      <div class="picker-title">오늘 세션 프로그램 선택</div>
+      <div class="picker-tabs">
+        <div class="picker-tab on" onclick="switchPickerTab('peak',this)">PEAK Gen</div>
+        <div class="picker-tab" onclick="switchPickerTab('vbmapp',this)">VB-MAPP</div>
+        <div class="picker-tab" onclick="switchPickerTab('custom',this)">개별 과제</div>
+      </div>
+      <div id="pickerPeak"><div id="pickerLevels"></div></div>
+      <div id="pickerVbmapp" class="hidden"><div id="vbmappLevels"></div></div>
+      <div id="pickerCustom" class="hidden">
+        <div id="customChips" style="display:flex;flex-wrap:wrap;gap:5px"></div>
+        <div style="margin-top:8px;font-size:11px;color:var(--text3)">※ 프로그램 편집에서 개별 과제를 추가하세요</div>
+      </div>
+    </div>
+
+    <!-- 탭 -->
+    <div id="tabArea">
+      <div class="empty-board" style="margin-bottom:10px">
+        <div class="ei">🎯</div>
+        <p>"프로그램 추가"를 눌러 선택해주세요</p>
+      </div>
+    </div>
+
+    <!-- 기록 패널 -->
+    <div class="rec-wrap" id="recWrap">
+      <div class="empty-board" style="border:none">
+        <div class="ei">👆</div>
+        <p>위의 탭을 클릭하면 기록 칸이 나타납니다</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 프로그램 편집 ══ -->
+<div id="p-programs" class="hidden fade-in">
+  <div class="topbar">
+    <div class="topbar-title">프로그램 편집 (LTO / STO)</div>
+    <div style="display:flex;gap:6px">
+      <button class="btn btn-ghost btn-sm" onclick="openAddLTO()">+ 개별 과제 추가</button>
+    </div>
+  </div>
+  <div class="content">
+    <div class="source-tabs">
+      <div class="source-tab on" onclick="switchProgTab('peak',this)">PEAK Generalization</div>
+      <div class="source-tab" onclick="switchProgTab('vbmapp',this)">VB-MAPP</div>
+      <div class="source-tab" onclick="switchProgTab('custom',this)">개별 과제</div>
+    </div>
+    <div id="progListPeak"></div>
+    <div id="progListVbmapp" class="hidden"></div>
+    <div id="progListCustom" class="hidden"></div>
+  </div>
+</div>
+
+<!-- ══ 그래프 ══ -->
+<div id="p-graph" class="hidden fade-in">
+  <div class="topbar">
+    <div class="topbar-title">진행 그래프</div>
+    <select id="gPer" onchange="renderG()" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:5px 8px;font-size:11px;font-family:var(--font);outline:none">
+      <option value="7">7일</option><option value="14">2주</option>
+      <option value="30" selected>1달</option><option value="90">3달</option>
+    </select>
+  </div>
+  <div class="content">
+    <div class="sg" id="gStats"></div>
+    <div class="g2">
+      <div class="cc"><div class="cc-t"><span class="dot"></span>독립반응률 추이</div><div class="cw"><canvas id="c1"></canvas></div></div>
+      <div class="cc"><div class="cc-t"><span class="dot" style="background:var(--purple)"></span>점수 분포</div><div class="cw"><canvas id="c2"></canvas></div></div>
+    </div>
+    <div class="cc"><div class="cc-t"><span class="dot" style="background:var(--green)"></span>프로그램별 정반응률</div><div id="pbars"></div></div>
+    <div class="cc">
+      <div class="cc-t"><span class="dot" style="background:var(--amber)"></span>프로그램 상세 추이</div>
+      <select id="detSel" onchange="renderDet()" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:5px 8px;font-size:11px;font-family:var(--font);outline:none;margin-bottom:10px">
+        <option value="">-- 선택 --</option>
+      </select>
+      <div class="cw2"><canvas id="c3"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 히스토리 ══ -->
+<div id="p-hist" class="hidden fade-in">
+  <div class="topbar"><div class="topbar-title">세션 히스토리</div></div>
+  <div class="content">
+    <div class="cc">
+      <table class="ht">
+        <thead><tr><th>날짜</th><th>프로그램</th><th>STO</th><th>시도</th><th>정반응률</th><th>치료사</th></tr></thead>
+        <tbody id="histBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 아동 관리 ══ -->
+<div id="p-kids" class="hidden fade-in">
+  <div class="topbar"><div class="topbar-title">아동 관리</div><button class="btn btn-primary btn-sm" onclick="openAddChild()">+ 추가</button></div>
+  <div class="content"><div class="cg" id="kgrid"></div></div>
+</div>
+
+</div><!-- main -->
+</div><!-- app -->
+
+<!-- 아동 추가/수정 모달 -->
+<div class="ov" id="childModal">
+  <div class="modal">
+    <div class="mh">
+      <h3 id="childModalTitle">아동 추가</h3>
+      <button class="mx" onclick="closeModal('childModal')">×</button>
+    </div>
+    <input type="hidden" id="edit-child-id">
+    <div class="fg"><label>이름</label><input type="text" id="nc-n" placeholder="홍길동"></div>
+    <div class="fg"><label>생년월일</label><input type="date" id="nc-b"></div>
+    <div class="fg"><label>진단명</label><input type="text" id="nc-d" placeholder="자폐스펙트럼장애"></div>
+    <div class="fg"><label>VB-MAPP 수준</label>
+      <select id="nc-v">
+        <option value="1">수준 1 (0~18개월)</option>
+        <option value="2">수준 2 (18~30개월)</option>
+        <option value="3">수준 3 (30~48개월)</option>
+      </select>
+    </div>
+    <div class="fg"><label>PEAK 모듈</label>
+      <select id="nc-p">
+        <option>Generalization</option><option>Equivalence</option><option>Transformation</option>
+      </select>
+    </div>
+    <div class="fg"><label>세션 단가</label><input type="number" id="nc-r" value="80000"></div>
+    <div class="fg"><label>메모</label><textarea id="nc-note" rows="2" placeholder="특이사항, 주의사항..."></textarea></div>
+    <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:14px">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('childModal')">취소</button>
+      <button class="btn btn-primary btn-sm" onclick="saveChild()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- LTO 추가 모달 (개별 과제) -->
+<div class="ov" id="addLTOModal">
+  <div class="modal">
+    <div class="mh"><h3>개별 과제 추가</h3><button class="mx" onclick="closeModal('addLTOModal')">×</button></div>
+    <div class="fg"><label>코드 (예: C-01)</label><input type="text" id="lto-code" placeholder="C-01"></div>
+    <div class="fg"><label>장기 목표 (LTO)</label><input type="text" id="lto-name" placeholder="예: 이름 듣고 고개 돌리기"></div>
+    <div class="fg"><label>단기 목표 1 (STO)</label><input type="text" id="sto-1" placeholder="예: 1m 거리에서 이름 듣고 고개 돌리기 3/5"></div>
+    <div class="fg"><label>단기 목표 2</label><input type="text" id="sto-2" placeholder="(선택)"></div>
+    <div class="fg"><label>단기 목표 3</label><input type="text" id="sto-3" placeholder="(선택)"></div>
+    <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:14px">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('addLTOModal')">취소</button>
+      <button class="btn btn-primary btn-sm" onclick="saveLTO()">추가</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ════ DB ════
+// ════ Supabase 설정 ════
+// 아래 두 값을 본인 Supabase 프로젝트의 값으로 교체하세요
+const SUPA_URL = 'https://fkjjbgontwvznouxsmjl.supabase.co';
+const SUPA_KEY = 'YOUR_PUBLISHABLE_KEY_HERE'; // 재발급한 키 입력
+
+const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
+
+// 온라인 여부 감지
+let IS_ONLINE = false;
+async function checkOnline() {
+  try {
+    const { error } = await supa.from('students').select('id').limit(1);
+    IS_ONLINE = !error;
+  } catch(e) { IS_ONLINE = false; }
+  updateSyncStatus();
+}
+
+function updateSyncStatus() {
+  const el = document.getElementById('syncStatus');
+  if (!el) return;
+  el.textContent = IS_ONLINE ? '🟢 Supabase 연결됨' : '🔴 오프라인 (로컬 저장)';
+  el.style.color = IS_ONLINE ? 'var(--green)' : 'var(--text3)';
+}
+
+// ════ DB (로컬 캐시) ════
+const DB = {
+  children: [],
+  sessions: [],          // 현재 세션 (호환성 유지)
+  sessionArchive: {},    // { "2026-04-21": [ {id, timestamp, programs, ...} ] }
+  customPrograms: [],
+  customStos: {}         // { "LTO코드": ["STO1","STO2",...] } — custom_sto 우선
+};
+// ── 로컬 저장 (항상 실행 — 오프라인 백업) ──
+function save() {
+  try { localStorage.setItem('aba4', JSON.stringify(DB)); } catch(e) {}
+}
+
+function load() {
+  try {
+    const d = localStorage.getItem('aba4');
+    if (d) Object.assign(DB, JSON.parse(d));
+  } catch(e) {}
+}
+
+// ── Supabase: 아동 목록 동기화 ──
+async function syncStudentsFromCloud() {
+  if (!IS_ONLINE) return;
+  try {
+    const { data, error } = await supa.from('students').select('*').order('created_at');
+    if (error || !data) return;
+    // 클라우드 데이터를 로컬 DB에 반영
+    DB.children = data.map(s => ({
+      id: s.id, name: s.name,
+      birth: s.birth_date, diag: s.diagnosis,
+      vbmapp: s.vbmapp_level, peak: s.peak_module,
+      rate: s.session_rate, note: s.note || '',
+      createdAt: s.created_at
+    }));
+    save();
+    renderChildSel();
+    renderKids();
+  } catch(e) { console.warn('syncStudents 실패:', e); }
+}
+
+// ── Supabase: 아동 저장/수정 ──
+async function saveChildToCloud(data, editId) {
+  if (!IS_ONLINE) return null;
+  try {
+    const row = {
+      name: data.name, birth_date: data.birth,
+      diagnosis: data.diag, vbmapp_level: data.vbmapp,
+      peak_module: data.peak, session_rate: data.rate, note: data.note
+    };
+    if (editId) {
+      const { error } = await supa.from('students').update(row).eq('id', editId);
+      if (error) throw error;
+      return editId;
+    } else {
+      const { data: res, error } = await supa.from('students').insert(row).select().single();
+      if (error) throw error;
+      return res.id;
+    }
+  } catch(e) { console.warn('saveChild 실패:', e); return null; }
+}
+
+// ── Supabase: 세션 기록 저장 ──
+async function saveSessionToCloud(sessionData) {
+  if (!IS_ONLINE) return;
+  try {
+    const row = {
+      id: sessionData.id,
+      student_id: sessionData.childId,
+      session_date: sessionData.date,
+      content: sessionData,
+      therapist: sessionData.therapist,
+      duration: sessionData.duration,
+      condition: sessionData.condition,
+      updated_at: new Date().toISOString()
+    };
+    const { error } = await supa.from('session_records')
+      .upsert(row, { onConflict: 'id' });
+    if (error) throw error;
+  } catch(e) { console.warn('saveSession 실패:', e); }
+}
+
+// ── Supabase: 날짜별 세션 불러오기 ──
+async function loadSessionsFromCloud(studentId, dateStr) {
+  if (!IS_ONLINE) return;
+  try {
+    const { data, error } = await supa.from('session_records')
+      .select('*')
+      .eq('student_id', studentId)
+      .eq('session_date', dateStr);
+    if (error || !data) return;
+    if (!DB.sessionArchive[dateStr]) DB.sessionArchive[dateStr] = [];
+    data.forEach(row => {
+      const sess = row.content;
+      if (!sess) return;
+      const exists = DB.sessionArchive[dateStr].find(s=>s.id===sess.id);
+      if (!exists) DB.sessionArchive[dateStr].push(sess);
+    });
+    save();
+  } catch(e) { console.warn('loadSessions 실패:', e); }
+}
+
+// ── Supabase: custom STO 저장 (마스터 데이터 절대 변경 안 함) ──
+async function saveCustomStoToCloud(studentId, programId, stos) {
+  if (!IS_ONLINE || !studentId) return;
+  try {
+    const { error } = await supa.from('custom_programs')
+      .upsert({
+        student_id: studentId,
+        program_id: programId,
+        custom_sto: stos,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'student_id,program_id' });
+    if (error) throw error;
+  } catch(e) { console.warn('saveCustomSto 실패:', e); }
+}
+
+// ── Supabase: 아동별 custom STO 전체 불러오기 ──
+async function loadCustomStosFromCloud(studentId) {
+  if (!IS_ONLINE || !studentId) return;
+  try {
+    const { data, error } = await supa.from('custom_programs')
+      .select('program_id, custom_sto')
+      .eq('student_id', studentId);
+    if (error || !data) return;
+    data.forEach(row => {
+      if (row.custom_sto) DB.customStos[row.program_id] = row.custom_sto;
+    });
+    save();
+  } catch(e) { console.warn('loadCustomStos 실패:', e); }
+}
+
+// ════ VB-MAPP 프로그램 데이터 ════
+const VBMAPP_AREAS = [
+  {
+    id:'mand', name:'맨드(Mand)', short:'맨드',
+    levels: {
+      'Level1': [
+        {c:'MND-1-1', n:'촉구 받아 2가지 맨드', stos:['선호 강화물 있을 때 촉구로 맨드 2가지 3/5','새로운 맥락에서 동일 맨드 4/5']},
+        {c:'MND-1-2', n:'언어적 촉구 없이 4가지 맨드', stos:['언어 촉구 없이 선호 강화물 맨드 4가지 3/5','자발적 4가지 맨드 4/5']},
+        {c:'MND-1-3', n:'자발적 6가지 맨드', stos:['자발적 6가지 맨드 3/5','다양한 상황에서 자발적 맨드 4/5']},
+        {c:'MND-1-4', n:'자발적 5가지 표현(30분/20회)', stos:['30분 세션에 5가지 이상 자발적 맨드 3/5','20회 이상 자발적 맨드 표현 4/5']},
+        {c:'MND-1-5', n:'강화물 없이 10가지 맨드', stos:['강화물 없는 상황에서 10가지 맨드 3/5','새로운 환경에서 일반화 4/5']},
+      ],
+      'Level2': [
+        {c:'MND-2-1', n:'현장 없는 사물 20가지', stos:['눈앞에 없는 선호 사물 맨드 10가지 3/5','20가지로 확장 4/5']},
+        {c:'MND-2-2', n:'타인 수행 5가지 동작', stos:['타인에게 동작 수행 요청 3가지 3/5','5가지 동작 맨드 4/5']},
+        {c:'MND-2-3', n:'2개 단어 포함 5가지', stos:['2어절 맨드 3가지 3/5','2어절 맨드 5가지 일반화 4/5']},
+        {c:'MND-2-4', n:'자발적 15가지', stos:['다양한 상황 자발적 15가지 3/5','새로운 맥락 일반화 4/5']},
+        {c:'MND-2-5', n:'훈련 없이 10가지 신규', stos:['훈련 없이 새 맨드 5가지 3/5','10가지 새 맨드 자발 4/5']},
+      ]
+    }
+  },
+  {
+    id:'tact', name:'택트(Tact)', short:'택트',
+    levels: {
+      'Level1': [
+        {c:'TCT-1-1', n:'친숙한 대상 2가지', stos:['친숙한 사물 이름 대기 2가지 3/5','새로운 맥락 일반화 4/5']},
+        {c:'TCT-1-2', n:'질문에 4가지 택트', stos:['"이게 뭐야?" 에 4가지 사물 택트 3/5','다양한 배열에서 4/5']},
+        {c:'TCT-1-3', n:'질문에 6가지 택트', stos:['"이게 뭐야?" 에 6가지 택트 3/5','새로운 사물 일반화 4/5']},
+        {c:'TCT-1-4', n:'질문에 10가지 택트', stos:['"이게 뭐야?" 에 10가지 택트 3/5','그림+실물 일반화 4/5']},
+        {c:'TCT-1-5', n:'25개 택트 또는 질문에 20개', stos:['사물/그림 25개 택트 3/5','질문 없이 자발적 20개 4/5']},
+      ],
+      'Level2': [
+        {c:'TCT-2-1', n:'질문에 25개 택트', stos:['"이게 뭐야?" 에 25개 택트 3/5','새로운 사물 전이 4/5']},
+        {c:'TCT-2-2', n:'50개 대상 일반화', stos:['다양한 맥락 50개 택트 3/5','그림/실물/사진 일반화 4/5']},
+        {c:'TCT-2-3', n:'10개 동작 택트', stos:['"뭐 하고 있어?" 에 동작 5가지 3/5','10가지 동작 택트 4/5']},
+        {c:'TCT-2-4', n:'50개 대상 요소 조합', stos:['색+사물 조합 택트 25개 3/5','크기+사물 조합 포함 50개 4/5']},
+        {c:'TCT-2-5', n:'총 200개 명사/동사', stos:['명사 100개 이상 택트 3/5','동사 포함 총 200개 4/5']},
+      ]
+    }
+  },
+  {
+    id:'lr', name:'청자반응(LR)', short:'청자반응',
+    levels: {
+      'Level1': [
+        {c:'LR-1-1', n:'화자에게 눈맞춤 및 관심', stos:['이름 부를 때 눈맞춤 3/5','화자 방향 고개 돌리기 4/5']},
+        {c:'LR-1-2', n:'자기 이름 반응', stos:['이름 부를 때 적절히 반응 3/5','다양한 화자 이름 반응 4/5']},
+        {c:'LR-1-3', n:'2개 중 강화제 5가지 선택', stos:['2개 배열에서 지시 강화제 선택 3/5','5가지 강화제 일반화 4/5']},
+        {c:'LR-1-4', n:'지시 동작 4가지 수행', stos:['"앉아/일어나/줘/가져와" 지시 수행 3/5','4가지 새 동작 지시 수행 4/5']},
+        {c:'LR-1-5', n:'4개 중 대상물 20가지 선택', stos:['4개 배열에서 지시 대상물 선택 10가지 3/5','20가지 일반화 4/5']},
+      ],
+      'Level2': [
+        {c:'LR-2-1', n:'6개 중 대상물 40가지 선택', stos:['6개 배열에서 대상물 선택 20가지 3/5','40가지 일반화 4/5']},
+        {c:'LR-2-2', n:'8개 중 50개 대상 일반화', stos:['8개 배열에서 선택 25가지 3/5','50개 일반화 4/5']},
+        {c:'LR-2-3', n:'신체 동작 10개 수행', stos:['신체 부위 지시 5개 수행 3/5','10가지 동작 지시 수행 4/5']},
+        {c:'LR-2-4', n:'2개 요소 지시 50개 수행', stos:['2요소 지시 25개 수행 3/5','50개 일반화 4/5']},
+        {c:'LR-2-5', n:'환경 내 청자변별 250개', stos:['자연 환경 청자변별 100개 3/5','250개 일반화 4/5']},
+      ]
+    }
+  },
+  {
+    id:'iv', name:'인트라버벌(IV)', short:'인트라버벌',
+    levels: {
+      'Level2': [
+        {c:'IV-2-1', n:'문장완성 구절 10가지', stos:['익숙한 노래/구절 완성 5가지 3/5','10가지 문장완성 4/5']},
+        {c:'IV-2-2', n:'자기 이름 말하기', stos:['"이름이 뭐야?" 에 자기 이름 3/5','다양한 화자/상황 일반화 4/5']},
+        {c:'IV-2-3', n:'문장완성 25가지(노래 제외)', stos:['일상 구절 문장완성 15가지 3/5','노래 제외 25가지 4/5']},
+        {c:'IV-2-4', n:'무엇 질문 25가지', stos:['"뭐가 필요해?" 등 무엇 질문 10가지 3/5','25가지 일반화 4/5']},
+        {c:'IV-2-5', n:'누구/어디 질문 25가지', stos:['누구 질문 10가지 3/5','어디 질문 포함 25가지 4/5']},
+      ]
+    }
+  },
+  {
+    id:'lrffc', name:'LRFFC', short:'LRFFC',
+    levels: {
+      'Level2': [
+        {c:'LRFFC-2-1', n:'음식/음료 5가지 선택', stos:['기능/특성 단서로 음식 5가지 선택 3/5','새로운 음식 일반화 4/5']},
+        {c:'LRFFC-2-2', n:'LRFFC 청자반응 25가지', stos:['기능/특성/범주 단서 청자반응 15가지 3/5','25가지 일반화 4/5']},
+        {c:'LRFFC-2-3', n:'의문사 질문 LRFFC 25가지', stos:['"뭐로 먹어?" 등 의문사 단서 15가지 3/5','25가지 4/5']},
+        {c:'LRFFC-2-4', n:'3가지 지시문 반응 25가지', stos:['기능+특성+범주 조합 지시 15가지 3/5','25가지 4/5']},
+        {c:'LRFFC-2-5', n:'대상물 50% 자발적 택트', stos:['LRFFC 자극 50% 자발적 택트 3/5','새로운 자극 일반화 4/5']},
+      ]
+    }
+  },
+  {
+    id:'vpmts', name:'시지각(VP-MTS)', short:'시지각',
+    levels: {
+      'Level1': [
+        {c:'VP-1-1', n:'움직이는 자극 시각적 추적', stos:['움직이는 물체 시선 추적 5초 3/5','다양한 자극 추적 4/5']},
+        {c:'VP-1-2', n:'핀셋 집기', stos:['집게손가락 엄지 사용 물건 집기 3/5','다양한 크기 물건 4/5']},
+        {c:'VP-1-3', n:'30초 시각적 집중', stos:['30초 이상 활동에 시각 집중 3/5','새로운 활동 일반화 4/5']},
+        {c:'VP-1-4', n:'용기 넣기/쌓기 등 활동', stos:['용기에 물건 넣기 3/5','쌓기/끼우기 포함 다양한 활동 4/5']},
+        {c:'VP-1-5', n:'10개 대상물 매칭', stos:['동일 사물 매칭 5개 3/5','10개 대상물 매칭 4/5']},
+      ],
+      'Level2': [
+        {c:'VP-2-1', n:'동일 실물/그림 25개 매칭', stos:['실물-실물 매칭 15개 3/5','그림-실물 매칭 포함 25개 4/5']},
+        {c:'VP-2-2', n:'유사 색/모양 10가지 매칭', stos:['유사 색 매칭 5가지 3/5','유사 모양 포함 10가지 4/5']},
+        {c:'VP-2-3', n:'샘플-목표자극 25개 매칭', stos:['샘플 보고 배열에서 선택 15개 3/5','25개 일반화 4/5']},
+        {c:'VP-2-4', n:'연관 있는 자극 25개 매칭', stos:['기능적 연관 자극 매칭 15개 3/5','25개 일반화 4/5']},
+        {c:'VP-2-5', n:'3D-2D 그림 매칭 25개', stos:['실물-그림 매칭 15개 3/5','25개 일반화 4/5']},
+      ]
+    }
+  },
+  {
+    id:'mi', name:'동작모방(MI)', short:'동작모방',
+    levels: {
+      'Level1': [
+        {c:'MI-1-1', n:'대근육 동작 2개 모방', stos:['즉각적 대근육 동작 모방 2개 3/5','새로운 동작 일반화 4/5']},
+        {c:'MI-1-2', n:'대근육 동작 4개 모방', stos:['대근육 동작 모방 4개 3/5','새로운 맥락 일반화 4/5']},
+        {c:'MI-1-3', n:'사물 이용 포함 8개 모방', stos:['사물 이용 모방 4개 3/5','대근육+사물 이용 8개 4/5']},
+        {c:'MI-1-4', n:'타인 신체동작 자발적 모방', stos:['일상 중 타인 동작 자발 모방 3/5','다양한 사람/상황 4/5']},
+        {c:'MI-1-5', n:'모든 종류 동작 20개 모방', stos:['다양한 동작 10개 즉각 모방 3/5','모든 종류 20개 4/5']},
+      ],
+      'Level2': [
+        {c:'MI-2-1', n:'대상물 선택 10개 모방', stos:['사물 이용 동작 선택 모방 5개 3/5','10개 일반화 4/5']},
+        {c:'MI-2-2', n:'소근육 동작 20가지 모방', stos:['소근육 동작 10가지 3/5','20가지 일반화 4/5']},
+        {c:'MI-2-3', n:'3요소 연속 동작 10가지', stos:['2요소 연속 동작 5가지 3/5','3요소 10가지 4/5']},
+        {c:'MI-2-4', n:'자연 환경 기능 모방 5개', stos:['자연 환경 기능적 모방 3개 3/5','5개 일반화 4/5']},
+        {c:'MI-2-5', n:'일반화된 모방 레퍼토리', stos:['새로운 동작 즉각 모방 3/5','다양한 상황 일반화된 모방 4/5']},
+      ]
+    }
+  }
+];
+
+// VB-MAPP 전체 프로그램 flat 배열 (코드 검색용)
+const VBMAPP_FLAT = VBMAPP_AREAS.flatMap(area =>
+  Object.entries(area.levels).flatMap(([lv, progs]) =>
+    progs.map(p => ({...p, area:area.name, areaId:area.id, level:lv, source:'vbmapp'}))
+  )
+);
+
+// ════ PEAK GEN 프로그램 (LTO + 기본 STO) ════
+const PEAK_PROGS = [
+  {c:'1A',n:'일반화된 동작 모방',lv:1, stos:['1m 이내 동작 모방 3/5','다양한 신체부위 동작 모방 4/5','새로운 동작 전이 모방 4/5']},
+  {c:'1B',n:'그룹별 분류·세기',lv:1, stos:['2종류 분류 3/5','3종류 분류 3/5','수량 세기 연결 4/5']},
+  {c:'2A',n:'기능별 대체',lv:2, stos:['3개 사물 기능 변별 3/5','5개 사물 기능 변별 4/5','새로운 기능 전이 4/5']},
+  {c:'2B',n:'택트: 비동일 동물',lv:2, stos:['친숙한 동물 5종 비동일 택트 3/5','새로운 동물 비동일 택트 4/5']},
+  {c:'3C',n:'아이스파이: 실패 견디기',lv:3, stos:['모를 때 "모르겠어요" 표현 3/5','힌트 요청하기 3/5','정답 틀렸을 때 적절한 반응 4/5']},
+  {c:'3D',n:'색상 음영 수용 변별',lv:3, stos:['유사 색조 2종 변별 3/5','유사 색조 4종 변별 4/5']},
+  {c:'4A',n:'항목 그룹 세기',lv:4, stos:['같은 카테고리 3개 세기 3/5','다양한 카테고리 세기 4/5']},
+  {c:'4B',n:'비동일 의류 수용 변별',lv:4, stos:['의류 3종 비동일 변별 3/5','의류 5종 비동일 변별 4/5']},
+  {c:'4C',n:'배제: 특징',lv:4, stos:['2개 배열에서 특징 다른 것 3/5','4개 배열에서 특징 다른 것 4/5']},
+  {c:'4F',n:"'뭐라고?' 묻기",lv:4, stos:['못 들었을 때 "뭐라고요?" 3/5','다양한 표현으로 재요청 4/5']},
+  {c:'5B',n:'색상 변화 택트',lv:5, stos:['그림 속 주요 색상 택트 3/5','음영 무관 색상 택트 4/5']},
+  {c:'5D',n:'부수적 반응 택트',lv:5, stos:['행동으로 감정 표현 택트 3/5','맥락 속 감정 택트 4/5']},
+  {c:'5F',n:'맨드 오퍼런트 확장',lv:5, stos:['5가지 다양한 맨드 표현 3/5','상황별 적절한 맨드 표현 4/5']},
+  {c:'5G',n:'일반화된 패터닝',lv:5, stos:['3요소 패턴 완성 3/5','4요소 패턴 완성 4/5','새로운 재료 패턴 전이 4/5']},
+  {c:'5H',n:'빈정거림 구별',lv:5, stos:['명백한 빈정거림 구별 3/5','미묘한 빈정거림 구별 4/5']},
+  {c:'6A',n:'택트: 비동일 사람',lv:6, stos:['친숙한 사람 비동일 사진 택트 3/5','낯선 각도 사진 택트 4/5']},
+  {c:'6G',n:'초보 조망 취하기',lv:6, stos:['다른 위치 관점 인식 3/5','사물 관점 취하기 4/5']},
+  {c:'7F',n:'차례 지키기',lv:7, stos:['1:1 차례 지키기 3/5','3인 이상 차례 지키기 4/5']},
+  {c:'7K',n:'청중 신뢰도',lv:7, stos:['모르는 것 인정하기 3/5','확실한 것과 불확실한 것 구분 4/5']},
+  {c:'9E',n:'표정에 반응하기',lv:9, stos:['기본 4가지 감정 표정 구별 3/5','복합 표정 구별 4/5']},
+  {c:'10L',n:'기다리기',lv:10, stos:['1분 기다리기 3/5','3분 기다리기 4/5','활동 전환 기다리기 4/5']},
+];
+
+// ════ 앱 상태 ════
+let S = {
+  child: null,
+  page: 'rec',
+  current: null,
+  currentSto: null,
+  board: {},
+  pickerOpen: false,
+  progTab: 'peak',
+  charts: {},
+  editingSessionId: null,   // 덮어쓰기 대상 세션 ID
+};
+
+// ════ 초기화 ════
+async function init() {
+  load();  // 로컬스토리지 먼저 로드
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('sDate').value = today;
+  buildPicker();
+  renderChildSel();
+  renderKids();
+
+  // Supabase 연결 확인 후 동기화
+  await checkOnline();
+  if (IS_ONLINE) {
+    showToast('Supabase 연결됨 — 데이터 동기화 중...','ok');
+    await syncStudentsFromCloud();
+  } else {
+    if (!DB.children.length) addSample();
+    showToast('오프라인 모드 — 로컬 데이터 사용');
+  }
+  setTimeout(() => onDateChange(today), 100);
+}
+
+function addSample() {
+  DB.children.push(
+    {id:'c1',name:'김민준',birth:'2018-03-15',diag:'자폐스펙트럼장애',vbmapp:2,peak:'Generalization',rate:80000,note:''},
+    {id:'c2',name:'이서연',birth:'2017-08-22',diag:'자폐스펙트럼장애',vbmapp:3,peak:'Generalization',rate:80000,note:''}
+  );
+  // 샘플 세션 (+ P - 체계)
+  const pc = ['5B','5D','6A','7F'];
+  for (let i=29; i>=0; i-=3) {
+    const d=new Date(); d.setDate(d.getDate()-i);
+    DB.sessions.push({
+      id:'s'+Date.now()+i, childId:'c1',
+      date:d.toISOString().split('T')[0],
+      therapist:'김치료사', duration:'40', condition:'보통',
+      programs: pc.map(code => {
+        const lto = PEAK_PROGS.find(x=>x.c===code);
+        const base = 30+(29-i)*1.5;
+        return {
+          code, name:lto?.n||code, source:'peak',
+          stos: (lto?.stos||['기본 STO']).slice(0,2).map(sn => ({
+            name: sn,
+            trials: Array.from({length:10}, () => {
+              const v=base+Math.random()*20;
+              return v>80?'+':v>50?'P':'-';
+            }),
+            blocks: []
+          })),
+          currentSto: 0, memo:''
+        };
+      })
+    });
+  }
+  save(); renderChildSel(); renderKids();
+}
+
+// ════ 선택기 ════
+function buildPicker() {
+  const w = document.getElementById('pickerLevels');
+  const lvs = [...new Set(PEAK_PROGS.map(p=>p.lv))].sort((a,b)=>a-b);
+  w.innerHTML = lvs.map(lv => `
+    <div class="lv-row">
+      <span class="lv-lbl">Lv${lv}</span>
+      ${PEAK_PROGS.filter(p=>p.lv===lv).map(p =>
+        `<div class="chip" id="ch-${p.c}" onclick="toggleProg('${p.c}','${p.n.replace(/'/g,"\\'")}','peak')">${p.c}</div>`
+      ).join('')}
+    </div>`).join('');
+}
+
+function buildCustomPicker() {
+  const w = document.getElementById('customChips');
+  const customs = DB.customPrograms || [];
+  if (!customs.length) { w.innerHTML='<div style="font-size:11px;color:var(--text3)">아직 개별 과제가 없어요</div>'; return; }
+  w.innerHTML = customs.map(p =>
+    `<div class="chip" id="ch-${p.c}" onclick="toggleProg('${p.c}','${p.n.replace(/'/g,"\\'")}','custom')">${p.c}</div>`
+  ).join('');
+}
+
+function switchPickerTab(tab, el) {
+  document.querySelectorAll('.picker-tab').forEach(t=>t.classList.remove('on'));
+  el.classList.add('on');
+  document.getElementById('pickerPeak').classList.toggle('hidden', tab!=='peak');
+  document.getElementById('pickerVbmapp').classList.toggle('hidden', tab!=='vbmapp');
+  document.getElementById('pickerCustom').classList.toggle('hidden', tab!=='custom');
+  if (tab==='vbmapp') buildVbmappPicker();
+  if (tab==='custom') buildCustomPicker();
+}
+
+function buildVbmappPicker() {
+  const w = document.getElementById('vbmappLevels');
+  w.innerHTML = VBMAPP_AREAS.map(area => {
+    const chips = Object.entries(area.levels).flatMap(([lv, progs]) =>
+      progs.map(p =>
+        `<div class="chip" id="ch-${p.c}" onclick="toggleProg('${p.c}','${p.n.replace(/'/g,"\'")}','vbmapp')" title="${p.n}">${p.c}</div>`
+      )
+    ).join('');
+    return `<div class="lv-row">
+      <span class="lv-lbl" style="min-width:52px;font-size:10px">${area.short}</span>
+      ${chips}
+    </div>`;
+  }).join('');
+}
+
+function togglePicker() {
+  S.pickerOpen = !S.pickerOpen;
+  document.getElementById('picker').classList.toggle('hidden', !S.pickerOpen);
+  document.getElementById('pickerBtn').textContent = S.pickerOpen ? '▲ 닫기' : '+ 프로그램 추가';
+}
+
+function toggleProg(code, name, source) {
+  const chip = document.getElementById('ch-'+code);
+  if (S.board[code]) {
+    delete S.board[code];
+    chip?.classList.remove('on');
+    if (S.current === code) {
+      S.current = Object.keys(S.board)[0] || null;
+    }
+  } else {
+    // LTO에서 STO 목록 가져오기
+    const lto = source==='peak'
+      ? PEAK_PROGS.find(x=>x.c===code)
+      : source==='vbmapp'
+      ? VBMAPP_FLAT.find(x=>x.c===code)
+      : (DB.customPrograms||[]).find(x=>x.c===code);
+    // custom_sto 우선: DB.customStos에 있으면 그것을 사용
+    const baseStos = DB.customStos[code]
+      ? DB.customStos[code]
+      : (lto?.stos||['기본 STO']).map(sn => typeof sn==='string'?sn:sn.name);
+    const stos = baseStos.map(sn => ({ name:sn, trials:[], blocks:[] }));
+    S.board[code] = { code, name, source, stos, currentSto:0, memo:'' };
+    chip?.classList.add('on');
+    if (!S.current) S.current = code;
+  }
+  renderTabs();
+  renderRecPanel();
+}
+
+// ════ 탭 렌더 ════
+function renderTabs() {
+  const area = document.getElementById('tabArea');
+  const entries = Object.values(S.board).sort((a,b)=>{
+    const la = PEAK_PROGS.find(x=>x.c===a.code)?.lv||99;
+    const lb = PEAK_PROGS.find(x=>x.c===b.code)?.lv||99;
+    return la-lb;
+  });
+
+  if (!entries.length) {
+    area.innerHTML = `<div class="empty-board" style="margin-bottom:10px"><div class="ei">🎯</div><p>"프로그램 추가"를 눌러 선택해주세요</p></div>`;
+    return;
+  }
+
+  const tabs = entries.map(p => {
+    const allTrials = p.stos.flatMap(s=>[...s.trials,...s.blocks.flat()]);
+    const pct = allTrials.length ? Math.round(allTrials.filter(t=>t==='+').length/allTrials.length*100) : null;
+    const totalDone = p.stos.every(s=>(s.trials.filter(t=>t!==undefined&&t!==null).length + s.blocks.flat().length) >= 10);
+    const mastery = pct!==null && pct>=80;
+
+    let cls = 'prog-tab';
+    if (p.code===S.current) cls+=' active';
+    else if (mastery) cls+=' mastery';
+    else if (totalDone) cls+=' done-tab';
+
+    const pctColor = pct===null?'var(--text3)':pct>=80?'var(--green)':pct>=50?'var(--accent)':'var(--red)';
+    const curSto = p.stos[p.currentSto];
+    const curTrials = [...(curSto?.trials||[])].filter(t=>t!==null&&t!==undefined);
+
+    return `<div class="${cls}" onclick="selectProg('${p.code}')">
+      <span class="pt-code">${p.code}</span>
+      ${pct!==null
+        ? `<span class="pt-pct" style="color:${pctColor}">${pct}%</span>`
+        : `<span class="pt-cnt">${curTrials.length}/10</span>`
+      }
+    </div>`;
+  }).join('');
+
+  area.innerHTML = `<div class="tab-strip" style="margin-bottom:10px">${tabs}</div>`;
+}
+
+// ════ 탭 선택 ════
+function selectProg(code) {
+  saveMemo();
+  S.current = code;
+  renderTabs();
+  renderRecPanel();
+}
+
+function saveMemo() {
+  if (S.current && S.board[S.current]) {
+    const m = document.getElementById('rec-memo');
+    if (m) S.board[S.current].memo = m.value;
+  }
+}
+
+// ════ 기록 패널 렌더 ════
+function renderRecPanel() {
+  const wrap = document.getElementById('recWrap');
+  const p = S.current ? S.board[S.current] : null;
+  if (!p) {
+    wrap.innerHTML = `<div class="empty-board" style="border:none"><div class="ei">👆</div><p>위의 탭을 클릭하면 기록 칸이 나타납니다</p></div>`;
+    return;
+  }
+
+  const curStoIdx = p.currentSto||0;
+  const curSto = p.stos[curStoIdx];
+  if (!curSto) { wrap.innerHTML='<div style="padding:20px;color:var(--text3)">STO가 없습니다</div>'; return; }
+
+  // 전체 정반응률 계산
+  const allT = p.stos.flatMap(s=>[...s.trials,...s.blocks.flat()]).filter(t=>t);
+  const pct = allT.length ? Math.round(allT.filter(t=>t==='+').length/allT.length*100) : null;
+  const pc = pct===null?'var(--text3)':pct>=80?'var(--green)':pct>=50?'var(--accent)':'var(--red)';
+
+  // 현재 STO 정반응률
+  const stoTrials = [...curSto.trials, ...curSto.blocks.flat()].filter(t=>t);
+  const stoPct = stoTrials.length ? Math.round(stoTrials.filter(t=>t==='+').length/stoTrials.length*100) : null;
+  const stoColor = stoPct===null?'var(--text3)':stoPct>=80?'var(--green)':stoPct>=50?'var(--accent)':'var(--red)';
+
+  // STO 목록 (세션 내 편집 가능 — 원본 PEAK/VB-MAPP 마스터 데이터 변경 없음)
+  const stoList = p.stos.map((sto,i) => {
+    const st = [...sto.trials,...sto.blocks.flat()].filter(t=>t);
+    const sp = st.length ? Math.round(st.filter(t=>t==='+').length/st.length*100) : null;
+    const sc = sp===null?'var(--text3)':sp>=80?'var(--green)':sp>=50?'var(--accent)':'var(--red)';
+    return `<div class="sto-row" id="sto-row-${p.code}-${i}">
+      <span style="font-size:10px;color:var(--text3);font-family:var(--mono);min-width:16px;cursor:pointer"
+        onclick="selectSTO('${p.code}',${i})">${i+1}</span>
+      <span class="sto-name${i===curStoIdx?' active-sto':''}" style="cursor:pointer"
+        onclick="selectSTO('${p.code}',${i})" id="sto-label-${p.code}-${i}">${sto.name}</span>
+      <span style="font-family:var(--mono);font-size:11px;color:${sc};font-weight:600;min-width:32px">${sp!==null?sp+'%':st.length+'/10'}</span>
+      <button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:1px 4px"
+        onclick="sessionEditSTO('${p.code}',${i})" title="STO 이름 수정">✏</button>
+      <button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:1px 4px"
+        onclick="sessionDeleteSTO('${p.code}',${i})" title="STO 삭제">×</button>
+    </div>`;
+  }).join('') +
+  // STO 추가 입력칸
+  `<div style="display:flex;gap:5px;margin-top:6px;padding-top:6px;border-top:1px dashed var(--border)">
+    <input type="text" id="new-sto-input-${p.code}"
+      placeholder="새 단기 목표(STO) 추가..."
+      style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:4px 8px;font-size:11px;font-family:var(--font);outline:none"
+      onkeydown="if(event.key==='Enter')sessionAddSTO('${p.code}')">
+    <button class="btn btn-primary btn-sm" style="padding:3px 8px;font-size:11px"
+      onclick="sessionAddSTO('${p.code}')">+ 추가</button>
+  </div>`;
+
+  // 현재 STO 10칸 (메인 블록)
+  const cursor = curSto.trials.filter(t=>t!==null&&t!==undefined).length < 10
+    ? curSto.trials.findIndex(t=>t===null||t===undefined)
+    : -1;
+  const mainCells = Array.from({length:10}, (_,i) => {
+    const v = curSto.trials[i];
+    let cls = 'tc';
+    if (v==='+') cls+=' s-plus';
+    else if (v==='P') cls+=' s-p';
+    else if (v==='-') cls+=' s-minus';
+    if (i===cursor) cls+=' cursor';
+    return `<div class="${cls}" onclick="cellClick(${i},0)"><span class="tn">${i+1}</span>${v||''}</div>`;
+  }).join('');
+
+  // 추가 블록 (10회 초과)
+  const extraBlocks = (curSto.blocks||[]).map((blk,bi) => {
+    const bCursor = blk.filter(t=>t).length < 10 ? blk.findIndex(t=>!t) : -1;
+    const bCells = Array.from({length:10},(_,i)=>{
+      const v=blk[i];
+      let cls='tc';
+      if(v==='+')cls+=' s-plus';else if(v==='P')cls+=' s-p';else if(v==='-')cls+=' s-minus';
+      if(i===bCursor)cls+=' cursor';
+      return `<div class="${cls}" onclick="cellClick(${i},${bi+1})"><span class="tn">${i+1}</span>${v||''}</div>`;
+    }).join('');
+    return `<div class="extra-block">
+      <div class="extra-label">${bi+2}블록 (${blk.filter(t=>t).length}/10)</div>
+      <div class="trial-row">${bCells}</div>
+    </div>`;
+  }).join('');
+
+  // 메인 블록이 꽉 찼으면 블록 추가 버튼
+  const mainFull = curSto.trials.filter(t=>t).length >= 10;
+  const lastBlockFull = (curSto.blocks||[]).length===0 ? true
+    : (curSto.blocks[curSto.blocks.length-1]||[]).filter(t=>t).length >= 10;
+  const canAddBlock = mainFull && lastBlockFull;
+
+  // 상태 뱃지
+  let bc='bg-gray',bt='시작 전';
+  const totalDone = [...curSto.trials,...(curSto.blocks||[]).flat()].filter(t=>t).length >= 10;
+  const stoMastery = stoPct!==null && stoPct>=80 && totalDone;
+  if (stoMastery) { bc='bg-g'; bt='STO 달성 ✓'; }
+  else if (totalDone) { bc='bg-b'; bt='10회 완료'; }
+  else if (curSto.trials.filter(t=>t).length) { bc='bg-a'; bt='진행 중'; }
+
+  wrap.innerHTML = `
+  <div class="rec-head">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span class="rec-code">${p.code}</span>
+      <span class="rec-name">${p.name}</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font-size:10px;color:var(--text3)">전체</span>
+      <span class="rec-pct" style="color:${pc}">${pct!==null?pct+'%':''}</span>
+    </div>
+  </div>
+  <div class="rec-body">
+    <!-- STO 목록 -->
+    <div class="sto-list">${stoList}</div>
+
+    <!-- 현재 STO 기록 -->
+    <div style="background:var(--bg3);border-radius:var(--r);padding:10px 12px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div style="font-size:11px;color:var(--text3)">STO ${curStoIdx+1}. <span style="color:var(--text2)">${curSto.name}</span></div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span class="badge ${bc}">${bt}</span>
+          <span style="font-family:var(--mono);font-size:12px;font-weight:700;color:${stoColor}">${stoPct!==null?stoPct+'%':''}</span>
+        </div>
+      </div>
+
+      <!-- + P - 버튼 -->
+      <div class="score-btns">
+        <button class="sc sc-plus" onclick="inputScore('+')">+<span>정반응</span></button>
+        <button class="sc sc-p" onclick="inputScore('P')">P<span>촉구반응</span></button>
+        <button class="sc sc-minus" onclick="inputScore('-')">−<span>오반응</span></button>
+      </div>
+
+      <!-- 메인 10칸 -->
+      <div class="trial-row">${mainCells}</div>
+
+      <!-- 추가 블록 -->
+      ${extraBlocks}
+
+      <!-- 블록 추가 버튼 -->
+      ${canAddBlock ? `<button class="btn btn-ghost btn-sm" style="width:100%;margin-top:6px;justify-content:center" onclick="addBlock()">+ 10회 추가 기록</button>` : ''}
+
+      <!-- 조작 버튼 -->
+      <div class="rec-sum">
+        <span>${[...curSto.trials,...(curSto.blocks||[]).flat()].filter(t=>t).length}회 기록</span>
+        <button class="btn btn-ghost btn-sm" style="margin-left:auto;padding:2px 8px;font-size:10px" onclick="undoLast()">↩ 취소</button>
+        <button class="btn btn-ghost btn-sm" style="padding:2px 8px;font-size:10px" onclick="clearCur()">초기화</button>
+      </div>
+    </div>
+
+    <input type="text" id="rec-memo" class="memo-input"
+      placeholder="메모 (강화물, 촉구, 특이사항...)"
+      value="${p.memo||''}"
+      onchange="S.board['${p.code}'].memo=this.value">
+  </div>`;
+}
+
+// ════ STO 선택 ════
+function selectSTO(code, idx) {
+  if (S.board[code]) {
+    S.board[code].currentSto = idx;
+    renderRecPanel();
+  }
+}
+
+// ════ 세션 내 STO 편집 (원본 마스터 데이터 변경 없음 — 이 아동의 보드에만 적용) ════
+function sessionEditSTO(code, idx) {
+  const p = S.board[code]; if (!p) return;
+  const cur = p.stos[idx]?.name || '';
+  const label = document.getElementById(`sto-label-${code}-${idx}`);
+  if (!label) return;
+  // 인라인 입력칸으로 교체
+  label.outerHTML = `<input id="sto-edit-${code}-${idx}" type="text" value="${cur.replace(/"/g,'&quot;')}"
+    style="flex:1;background:var(--bg);border:1px solid var(--accent);border-radius:5px;color:var(--text);
+           padding:3px 7px;font-size:12px;font-family:var(--font);outline:none"
+    onblur="sessionSaveEditSTO('${code}',${idx},this.value)"
+    onkeydown="if(event.key==='Enter')this.blur();if(event.key==='Escape'){this.value='${cur.replace(/'/g,"\'")}';this.blur();}">`;
+  document.getElementById(`sto-edit-${code}-${idx}`)?.focus();
+}
+
+function sessionSaveEditSTO(code, idx, val) {
+  const p = S.board[code]; if (!p) return;
+  const trimmed = val.trim();
+  if (trimmed && p.stos[idx]) {
+    p.stos[idx].name = trimmed;
+    // DB.customStos에도 반영 (클라우드 저장)
+    if (!DB.customStos[code]) {
+      DB.customStos[code] = p.stos.map(s=>s.name);
+    } else {
+      DB.customStos[code][idx] = trimmed;
+    }
+    save();
+    if (IS_ONLINE && S.child) saveCustomStoToCloud(S.child.id, code, DB.customStos[code]);
+  }
+  renderRecPanel();
+}
+
+function sessionDeleteSTO(code, idx) {
+  const p = S.board[code]; if (!p) return;
+  if (p.stos.length <= 1) { showToast('STO가 1개 이하일 때는 삭제할 수 없어요','err'); return; }
+  p.stos.splice(idx, 1);
+  if (p.currentSto >= p.stos.length) p.currentSto = p.stos.length - 1;
+  // DB.customStos 업데이트
+  DB.customStos[code] = p.stos.map(s=>s.name);
+  save();
+  if (IS_ONLINE && S.child) saveCustomStoToCloud(S.child.id, code, DB.customStos[code]);
+  renderTabs(); renderRecPanel();
+}
+
+function sessionAddSTO(code) {
+  const input = document.getElementById(`new-sto-input-${code}`);
+  const name = input?.value.trim();
+  if (!name) return;
+  const p = S.board[code]; if (!p) return;
+  // 새 STO 추가 (trials/blocks 빈 상태)
+  p.stos.push({ name, trials: Array(10).fill(null), blocks: [] });
+  // DB.customStos 업데이트
+  DB.customStos[code] = p.stos.map(s=>s.name);
+  save();
+  if (IS_ONLINE && S.child) saveCustomStoToCloud(S.child.id, code, DB.customStos[code]);
+  showToast(`STO "${name}" 추가됨`,'ok');
+  renderTabs(); renderRecPanel();
+}
+
+// ════ + P - 점수 입력 ════
+function inputScore(score) {
+  const p = S.board[S.current];
+  if (!p) return;
+  const sto = p.stos[p.currentSto||0];
+  if (!sto) return;
+
+  // 메인 블록 먼저
+  if (sto.trials.filter(t=>t).length < 10) {
+    const idx = sto.trials.findIndex(t=>!t);
+    if (idx===-1) { sto.trials.push(score); }
+    else sto.trials[idx] = score;
+  } else if ((sto.blocks||[]).length > 0) {
+    // 마지막 블록에 추가
+    const lastBlk = sto.blocks[sto.blocks.length-1];
+    if (lastBlk.filter(t=>t).length < 10) {
+      const idx = lastBlk.findIndex(t=>!t);
+      if (idx===-1) lastBlk.push(score);
+      else lastBlk[idx] = score;
+    } else {
+      showToast('블록이 꽉 찼어요. "10회 추가 기록" 버튼을 누르세요');
+      return;
+    }
+  } else {
+    showToast('10회가 완료됐어요. "10회 추가 기록" 버튼을 누르세요');
+    return;
+  }
+
+  renderTabs();
+  renderRecPanel();
+}
+
+// ════ 칸 클릭 (지우기) ════
+function cellClick(idx, blockIdx) {
+  const p = S.board[S.current];
+  if (!p) return;
+  const sto = p.stos[p.currentSto||0];
+  if (!sto) return;
+
+  if (blockIdx===0) {
+    if (sto.trials[idx]) { sto.trials[idx] = null; renderTabs(); renderRecPanel(); }
+  } else {
+    const blk = sto.blocks[blockIdx-1];
+    if (blk && blk[idx]) { blk[idx] = null; renderTabs(); renderRecPanel(); }
+  }
+}
+
+// ════ 블록 추가 ════
+function addBlock() {
+  const p = S.board[S.current];
+  if (!p) return;
+  const sto = p.stos[p.currentSto||0];
+  if (!sto) return;
+  if (!sto.blocks) sto.blocks = [];
+  sto.blocks.push(Array(10).fill(null));
+  renderRecPanel();
+  showToast('새 10회 블록이 추가됐습니다');
+}
+
+function undoLast() {
+  const p = S.board[S.current];
+  if (!p) return;
+  const sto = p.stos[p.currentSto||0];
+  if (!sto) return;
+
+  // 마지막 블록부터 역순으로
+  if (sto.blocks?.length) {
+    const lastBlk = sto.blocks[sto.blocks.length-1];
+    for (let i=9;i>=0;i--) {
+      if (lastBlk[i]) { lastBlk[i]=null; renderTabs(); renderRecPanel(); return; }
+    }
+    // 빈 블록이면 제거
+    sto.blocks.pop();
+  }
+  for (let i=9;i>=0;i--) {
+    if (sto.trials[i]) { sto.trials[i]=null; renderTabs(); renderRecPanel(); return; }
+  }
+}
+
+function clearCur() {
+  const p = S.board[S.current];
+  if (!p) return;
+  const sto = p.stos[p.currentSto||0];
+  if (!sto) return;
+  sto.trials = Array(10).fill(null);
+  sto.blocks = [];
+  renderTabs();
+  renderRecPanel();
+}
+
+// 날짜 변경 시 해당 날짜 아카이브 힌트 표시
+async function onDateChange(dateStr) {
+  document.getElementById('archivePanel')?.classList.add('hidden');
+
+  // 온라인이면 클라우드에서 해당 날짜 세션 불러오기
+  if (IS_ONLINE && S.child) {
+    await loadSessionsFromCloud(S.child.id, dateStr);
+  }
+
+  const archive = DB.sessionArchive[dateStr];
+  const btn = document.getElementById('archiveBtn');
+  if (!btn) return;
+  const child = S.child;
+  const filtered = child
+    ? (archive||[]).filter(s=>s.childId===child.id)
+    : (archive||[]);
+  if (filtered.length) {
+    btn.textContent = `📂 기록 불러오기 (${filtered.length}개)`;
+    btn.style.borderColor = 'rgba(79,142,247,.5)';
+    btn.style.color = 'var(--accent)';
+  } else {
+    btn.textContent = '📂 기록 불러오기';
+    btn.style.borderColor = '';
+    btn.style.color = '';
+  }
+}
+
+// 아카이브 패널 토글
+function showArchiveForDate() {
+  const dateStr = document.getElementById('sDate').value;
+  const panel = document.getElementById('archivePanel');
+  if (!panel) return;
+  if (!panel.classList.contains('hidden') && panel.dataset.date===dateStr) {
+    panel.classList.add('hidden'); return;
+  }
+  panel.dataset.date = dateStr;
+  document.getElementById('archiveDateLabel').textContent = dateStr;
+  const archive = (DB.sessionArchive[dateStr]||[]);
+  const child = S.child;
+  const filtered = child ? archive.filter(s=>s.childId===child.id) : archive;
+
+  if (!filtered.length) {
+    document.getElementById('archiveList').innerHTML =
+      '<div style="font-size:12px;color:var(--text3);padding:4px 0">저장된 기록이 없습니다</div>';
+  } else {
+    document.getElementById('archiveList').innerHTML = filtered.map(sess => {
+      const progSummary = (sess.programs||[]).map(p=>p.code).join(', ');
+      const savedAt = sess.savedAt ? new Date(sess.savedAt).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}) : '';
+      return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border)">
+        <div style="flex:1">
+          <div style="font-size:12px;color:var(--text)">${progSummary||'프로그램 없음'}</div>
+          <div style="font-size:10px;color:var(--text3)">${sess.therapist||''} · ${sess.duration||''}분 · 저장 ${savedAt}</div>
+        </div>
+        <button class="btn btn-ghost btn-sm" style="padding:3px 9px;font-size:11px"
+          onclick="loadSessionFromArchive('${sess.id}','${dateStr}')">불러오기</button>
+      </div>`;
+    }).join('');
+  }
+  panel.classList.remove('hidden');
+}
+
+// 아카이브에서 세션 불러오기 (보드에 적재 + 덮어쓰기 모드)
+function loadSessionFromArchive(sessId, dateStr) {
+  const archive = DB.sessionArchive[dateStr]||[];
+  const sess = archive.find(s=>s.id===sessId);
+  if (!sess) { showToast('세션을 찾을 수 없습니다','err'); return; }
+
+  // 보드 초기화 후 적재
+  S.board = {};
+  S.current = null;
+  S.editingSessionId = sessId;
+  document.querySelectorAll('.chip').forEach(c=>c.classList.remove('on'));
+
+  document.getElementById('sTherapist').value = sess.therapist||'';
+  document.getElementById('sDur').value = sess.duration||'40';
+  document.getElementById('sCond').value = sess.condition||'보통';
+
+  (sess.programs||[]).forEach(p => {
+    S.board[p.code] = {
+      code: p.code, name: p.name, source: p.source||'peak',
+      stos: (p.stos||[]).map(s=>({
+        name: s.name||s,
+        trials: [...(s.trials||[])],
+        blocks: (s.blocks||[]).map(b=>[...b])
+      })),
+      currentSto: 0, memo: p.memo||''
+    };
+    const chip = document.getElementById('ch-'+p.code);
+    if (chip) chip.classList.add('on');
+    if (!S.current) S.current = p.code;
+  });
+
+  document.getElementById('archivePanel')?.classList.add('hidden');
+  renderTabs(); renderRecPanel();
+
+  // 저장 버튼을 덮어쓰기 모드로 표시
+  const saveBtn = document.querySelector('[onclick="saveSess()"]');
+  if (saveBtn) {
+    saveBtn.textContent = '💾 덮어쓰기 저장';
+    saveBtn.style.background = 'var(--amber)';
+  }
+  showToast(`세션 불러옴 — 수정 후 "덮어쓰기 저장" 클릭`,'ok');
+}
+
+function resetBoard() {
+  saveMemo();
+  S.board={}; S.current=null; S.editingSessionId=null;
+  document.querySelectorAll('.chip').forEach(c=>c.classList.remove('on'));
+  // 저장 버튼 원복
+  const saveBtn = document.querySelector('[onclick="saveSess()"]');
+  if (saveBtn) { saveBtn.textContent='💾 저장'; saveBtn.style.background=''; }
+  renderTabs(); renderRecPanel();
+  showToast('초기화되었습니다');
+}
+
+// ════ 세션 저장 ════
+function saveSess() {
+  if (!S.child) { showToast('아동을 선택해주세요','err'); return; }
+  saveMemo();
+  const progs = Object.values(S.board).filter(p=>
+    p.stos.some(s=>[...s.trials,...(s.blocks||[]).flat()].some(t=>t))
+  );
+  if (!progs.length) { showToast('기록된 데이터가 없습니다','err'); return; }
+  const dateStr = document.getElementById('sDate').value;
+  const sessionData = {
+    id: S.editingSessionId || ('s'+Date.now()),
+    childId: S.child.id,
+    date: dateStr,
+    therapist: document.getElementById('sTherapist').value||'미입력',
+    duration: document.getElementById('sDur').value,
+    condition: document.getElementById('sCond').value,
+    programs: progs.map(p=>({
+      code:p.code, name:p.name, source:p.source,
+      stos: p.stos.map(s=>({name:s.name, trials:[...s.trials], blocks:[...(s.blocks||[]).map(b=>[...b])]})),
+      memo:p.memo
+    })),
+    savedAt: new Date().toISOString()
+  };
+
+  // sessionArchive 날짜별 저장 (덮어쓰기 지원)
+  if (!DB.sessionArchive[dateStr]) DB.sessionArchive[dateStr] = [];
+  if (S.editingSessionId) {
+    // 덮어쓰기
+    const idx = DB.sessionArchive[dateStr].findIndex(s=>s.id===S.editingSessionId);
+    if (idx!==-1) DB.sessionArchive[dateStr][idx] = sessionData;
+    else DB.sessionArchive[dateStr].push(sessionData);
+    showToast('덮어쓰기 저장 완료','ok');
+  } else {
+    DB.sessionArchive[dateStr].push(sessionData);
+    showToast(`저장 완료 (${progs.length}개 프로그램)`,'ok');
+  }
+  // 호환성: sessions 배열에도 유지
+  const si = DB.sessions.findIndex(s=>s.id===sessionData.id);
+  if (si!==-1) DB.sessions[si]=sessionData; else DB.sessions.push(sessionData);
+
+  S.editingSessionId = null;
+  save();
+
+  // Supabase 클라우드 저장 (비동기, 실패해도 로컬은 유지)
+  saveSessionToCloud(sessionData).then(() => {
+    if (IS_ONLINE) showToast('클라우드에도 저장됨 ☁️','ok');
+  });
+}
+
+// ════ 프로그램 편집 페이지 ════
+function switchProgTab(tab, el) {
+  document.querySelectorAll('.source-tab').forEach(t=>t.classList.remove('on'));
+  el.classList.add('on');
+  document.getElementById('progListPeak').classList.toggle('hidden', tab!=='peak');
+  document.getElementById('progListVbmapp').classList.toggle('hidden', tab!=='vbmapp');
+  document.getElementById('progListCustom').classList.toggle('hidden', tab!=='custom');
+  if (tab==='peak') renderProgListPeak();
+  else if (tab==='vbmapp') renderProgListVbmapp();
+  else renderProgListCustom();
+}
+
+function renderProgListVbmapp() {
+  const wrap = document.getElementById('progListVbmapp');
+  wrap.innerHTML = VBMAPP_AREAS.map(area => {
+    const cards = Object.entries(area.levels).flatMap(([lv, progs]) =>
+      progs.map(p => buildLTOCard({...p, area:area.name}, 'vbmapp'))
+    ).join('');
+    return `<div style="margin-bottom:6px">
+      <div style="font-size:11px;font-weight:500;color:var(--text2);padding:6px 0;letter-spacing:.04em">${area.name}</div>
+      ${cards}
+    </div>`;
+  }).join('');
+}
+
+function renderProgListPeak() {
+  const wrap = document.getElementById('progListPeak');
+  wrap.innerHTML = PEAK_PROGS.map(lto => buildLTOCard(lto, 'peak')).join('');
+}
+
+function renderProgListCustom() {
+  const wrap = document.getElementById('progListCustom');
+  const customs = DB.customPrograms||[];
+  if (!customs.length) {
+    wrap.innerHTML=`<div class="empty-board"><div class="ei">📋</div><p>아직 개별 과제가 없습니다<br>오른쪽 상단 "+ 개별 과제 추가"를 눌러 추가하세요</p></div>`;
+    return;
+  }
+  wrap.innerHTML = customs.map(lto => buildLTOCard(lto, 'custom')).join('');
+}
+
+function buildLTOCard(lto, source) {
+  // custom_sto 우선: DB.customStos에 있으면 그것을 사용
+  const customStos = DB.customStos[lto.c];
+  const stos = customStos
+    ? customStos
+    : (lto.stos||[]).map(s=>typeof s==='string'?s:s.name);
+  const hasCustom = !!customStos;
+
+  const sourceLabel = source==='peak'?'PEAK Gen':source==='vbmapp'?'VB-MAPP':'개별';
+
+  const stoRows = stos.map((sname, i) => `
+    <div class="sto-item" id="sto-item-${lto.c}-${i}">
+      <span style="font-size:10px;color:var(--text3);font-family:var(--mono);min-width:20px">${i+1}</span>
+      <span class="sto-item-name" id="sto-name-${lto.c}-${i}">${sname}</span>
+      <button class="btn btn-ghost btn-sm" style="padding:1px 6px;font-size:10px"
+        onclick="inlineEditSTO('${lto.c}',${i},'${sname.replace(/'/g,"\'")}')" title="수정">✏</button>
+      <button class="btn btn-danger btn-sm" style="padding:1px 6px;font-size:10px"
+        onclick="deleteCustomSTO('${lto.c}',${i})" title="삭제">×</button>
+    </div>`).join('');
+
+  return `<div class="lto-card" id="lto-${lto.c}">
+    <div class="lto-head" onclick="toggleLTO('${lto.c}')">
+      <span class="lto-toggle" id="lto-toggle-${lto.c}">▶</span>
+      <span class="lto-code">${lto.c}</span>
+      <span class="lto-name-text">${lto.n}</span>
+      <span class="lto-source" style="${hasCustom?'border-color:var(--amber);color:var(--amber)':''}">${sourceLabel}${hasCustom?' ✎':''}</span>
+      ${source==='custom'
+        ? `<button class="btn btn-danger btn-sm" style="padding:2px 7px;font-size:10px;margin-left:4px"
+            onclick="event.stopPropagation();deleteLTO('${lto.c}')">삭제</button>`
+        : ''}
+    </div>
+    <div class="lto-body hidden" id="lto-body-${lto.c}">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <span style="font-size:11px;color:var(--text3)">단기 목표 (STO)</span>
+        ${hasCustom
+          ? `<button class="btn btn-ghost btn-sm" style="padding:1px 7px;font-size:10px;color:var(--text3)"
+              onclick="resetCustomSTO('${lto.c}')">기본값 복원</button>`
+          : ''}
+      </div>
+      ${stoRows}
+      <div class="add-sto-row">
+        <input type="text" class="add-sto-input" id="sto-input-${lto.c}" placeholder="새 단기 목표 입력...">
+        <button class="btn btn-primary btn-sm" onclick="addCustomSTO('${lto.c}','${source}')">+ 추가</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+// 인라인 STO 수정
+function inlineEditSTO(code, idx, current) {
+  const nameEl = document.getElementById('sto-name-'+code+'-'+idx);
+  if (!nameEl) return;
+  nameEl.innerHTML = `<input type="text" class="sto-item-input" value="${current}"
+    onblur="saveInlineEditSTO('${code}',${idx},this.value)"
+    onkeydown="if(event.key==='Enter')this.blur()"
+    style="flex:1">`;
+  nameEl.querySelector('input').focus();
+}
+
+function saveInlineEditSTO(code, idx, val) {
+  if (!val.trim()) return;
+  ensureCustomStos(code);
+  DB.customStos[code][idx] = val.trim();
+  save();
+  refreshProgList();
+}
+
+// STO 삭제 (custom)
+function deleteCustomSTO(code, idx) {
+  ensureCustomStos(code);
+  DB.customStos[code].splice(idx,1);
+  save(); refreshProgList();
+}
+
+// STO 추가 (모든 소스 공통)
+function addCustomSTO(code, source) {
+  const input = document.getElementById('sto-input-'+code);
+  const name = input?.value.trim();
+  if (!name) return;
+  ensureCustomStos(code);
+  DB.customStos[code].push(name);
+  save(); refreshProgList();
+  showToast('STO 추가됨','ok');
+}
+
+// 기본값 복원
+function resetCustomSTO(code) {
+  if (!confirm('커스텀 STO를 삭제하고 기본값으로 복원할까요?')) return;
+  delete DB.customStos[code];
+  save(); refreshProgList();
+  showToast('기본값으로 복원됨');
+}
+
+// DB.customStos에 해당 코드가 없으면 기본 STO로 초기화
+function ensureCustomStos(code) {
+  if (!DB.customStos[code]) {
+    // 기본 STO 가져오기 (마스터 데이터 원본은 절대 변경 안 함)
+    const lto = PEAK_PROGS.find(x=>x.c===code)
+      || VBMAPP_FLAT.find(x=>x.c===code)
+      || (DB.customPrograms||[]).find(x=>x.c===code);
+    DB.customStos[code] = (lto?.stos||[]).map(s=>typeof s==='string'?s:s.name);
+  }
+  // 변경 시 클라우드에도 저장 (이 아동에게만 적용)
+  if (IS_ONLINE && S.child) {
+    saveCustomStoToCloud(S.child.id, code, DB.customStos[code]);
+  }
+}
+
+function refreshProgList() {
+  const tabs = document.querySelectorAll('.source-tab');
+  const activeTab = [...tabs].find(t=>t.classList.contains('on'));
+  if (!activeTab) return;
+  const text = activeTab.textContent;
+  if (text.includes('PEAK')) renderProgListPeak();
+  else if (text.includes('VB-MAPP')) renderProgListVbmapp();
+  else renderProgListCustom();
+}
+
+function toggleLTO(code) {
+  const body = document.getElementById('lto-body-'+code);
+  const toggle = document.getElementById('lto-toggle-'+code);
+  const hidden = body.classList.toggle('hidden');
+  toggle.textContent = hidden?'▶':'▼';
+  toggle.classList.toggle('open', !hidden);
+}
+
+// addSTO/deleteSTO → addCustomSTO/deleteCustomSTO 로 통합됨
+
+function deleteLTO(code) {
+  if (!confirm('이 과제를 삭제할까요?')) return;
+  DB.customPrograms = (DB.customPrograms||[]).filter(p=>p.c!==code);
+  save(); renderProgListCustom();
+  showToast('삭제됨');
+}
+
+function openAddLTO() {
+  document.getElementById('lto-code').value='';
+  document.getElementById('lto-name').value='';
+  ['sto-1','sto-2','sto-3'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('addLTOModal').classList.add('open');
+}
+
+function saveLTO() {
+  const code = document.getElementById('lto-code').value.trim();
+  const name = document.getElementById('lto-name').value.trim();
+  if (!code||!name) { showToast('코드와 목표명을 입력해주세요','err'); return; }
+  const stos = ['sto-1','sto-2','sto-3'].map(id=>document.getElementById(id).value.trim()).filter(Boolean);
+  if (!stos.length) stos.push('기본 STO');
+  if (!DB.customPrograms) DB.customPrograms=[];
+  DB.customPrograms.push({ c:code, n:name, stos, source:'custom' });
+  save();
+  closeModal('addLTOModal');
+  renderProgListCustom();
+  buildCustomPicker();
+  showToast(`"${name}" 추가됨`,'ok');
+}
+
+// ════ 그래프 ════
+function renderG() {
+  if (!S.child) return;
+  const days = parseInt(document.getElementById('gPer').value);
+  const cut = new Date(); cut.setDate(cut.getDate()-days);
+  const cutS = cut.toISOString().split('T')[0];
+  const sess = DB.sessions.filter(s=>s.childId===S.child.id&&s.date>=cutS).sort((a,b)=>a.date.localeCompare(b.date));
+
+  const allT = sess.flatMap(s=>s.programs.flatMap(p=>
+    p.stos.flatMap(st=>[...(st.trials||[]),...(st.blocks||[]).flat()])
+  )).filter(t=>t);
+
+  const plusPct = allT.length ? Math.round(allT.filter(t=>t==='+').length/allT.length*100) : 0;
+  const pPct = allT.length ? Math.round(allT.filter(t=>t==='P').length/allT.length*100) : 0;
+  const avgScore = allT.length
+    ? ((allT.filter(t=>t==='+').length*2 + allT.filter(t=>t==='P').length) / (allT.length*2) * 100).toFixed(0)
+    : 0;
+
+  const pm = {};
+  sess.forEach(s=>s.programs.forEach(p=>{
+    if (!pm[p.code]) pm[p.code]={name:p.name,trials:[]};
+    pm[p.code].trials.push(...p.stos.flatMap(st=>[...(st.trials||[]),...(st.blocks||[]).flat()]).filter(t=>t));
+  }));
+  const mas = Object.values(pm).filter(d=>{
+    const r=d.trials.slice(-10);
+    return r.length>=10&&r.filter(t=>t==='+').length/r.length>=.8;
+  }).length;
+
+  document.getElementById('gStats').innerHTML = [
+    {l:'총 세션',v:sess.length,c:'var(--accent)'},{l:'정반응률(+)',v:plusPct+'%',c:'var(--green)'},
+    {l:'촉구반응(P)',v:pPct+'%',c:'var(--accent)'},{l:'마스터리(80%+)',v:mas+'개',c:'var(--amber)'},
+  ].map(x=>`<div class="sbox"><div class="slbl">${x.l}</div><div class="sval" style="color:${x.c}">${x.v}</div></div>`).join('');
+
+  dc('c1');
+  S.charts.c1 = new Chart(document.getElementById('c1').getContext('2d'),{
+    type:'line',
+    data:{labels:sess.map(s=>s.date.slice(5)),datasets:[{
+      label:'정반응률(+)',
+      data:sess.map(s=>{
+        const t=s.programs.flatMap(p=>p.stos.flatMap(st=>[...(st.trials||[]),...(st.blocks||[]).flat()])).filter(t=>t);
+        return t.length?Math.round(t.filter(t=>t==='+').length/t.length*100):null;
+      }),
+      borderColor:'#34d48a',backgroundColor:'rgba(52,212,138,.1)',borderWidth:2,pointRadius:4,
+      pointBackgroundColor:'#34d48a',tension:.4,fill:true,spanGaps:true
+    },{
+      label:'촉구+정반응(P+)',
+      data:sess.map(s=>{
+        const t=s.programs.flatMap(p=>p.stos.flatMap(st=>[...(st.trials||[]),...(st.blocks||[]).flat()])).filter(t=>t);
+        return t.length?Math.round(t.filter(t=>t==='+'||t==='P').length/t.length*100):null;
+      }),
+      borderColor:'#4f8ef7',backgroundColor:'transparent',borderWidth:1.5,pointRadius:3,
+      pointBackgroundColor:'#4f8ef7',tension:.4,borderDash:[4,3],spanGaps:true
+    }]},
+    options:copt(0,100,'%')
+  });
+
+  dc('c2');
+  const tot=allT.length||1;
+  S.charts.c2=new Chart(document.getElementById('c2').getContext('2d'),{
+    type:'doughnut',
+    data:{labels:['+ 정반응','P 촉구반응','− 오반응'],datasets:[{
+      data:[
+        Math.round(allT.filter(t=>t==='+').length/tot*100),
+        Math.round(allT.filter(t=>t==='P').length/tot*100),
+        Math.round(allT.filter(t=>t==='-').length/tot*100)
+      ],
+      backgroundColor:['rgba(52,212,138,.85)','rgba(79,142,247,.7)','rgba(240,86,86,.8)'],
+      borderColor:'#171b26',borderWidth:3
+    }]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'right',labels:{color:'#8b94b0',font:{size:11},boxWidth:12}}}}
+  });
+
+  const sorted=Object.entries(pm)
+    .map(([c,d])=>({c,name:d.name,pct:Math.round(d.trials.filter(t=>t==='+').length/Math.max(d.trials.length,1)*100)}))
+    .sort((a,b)=>b.pct-a.pct).slice(0,10);
+  document.getElementById('pbars').innerHTML=sorted.map(p=>{
+    const color=p.pct>=80?'var(--green)':p.pct>=50?'var(--accent)':'var(--red)';
+    return `<div class="pb-row"><div class="pb-head">
+      <span><span style="font-family:var(--mono);color:var(--accent);margin-right:5px">${p.c}</span>${p.name}</span>
+      <span style="font-family:var(--mono);color:${color};font-weight:600">${p.pct}%</span>
+    </div><div class="pb"><div class="pb-fill" style="width:${p.pct}%;background:${color}"></div></div></div>`;
+  }).join('');
+
+  const detSel=document.getElementById('detSel');
+  detSel.innerHTML='<option value="">-- 선택 --</option>';
+  Object.keys(pm).forEach(code=>{detSel.innerHTML+=`<option value="${code}">${code} ${pm[code].name}</option>`;});
+}
+
+function renderDet() {
+  const code=document.getElementById('detSel').value;
+  if(!code||!S.child)return;
+  dc('c3');
+  const days=parseInt(document.getElementById('gPer').value);
+  const cut=new Date();cut.setDate(cut.getDate()-days);
+  const cutS=cut.toISOString().split('T')[0];
+  const sess=DB.sessions.filter(s=>s.childId===S.child.id&&s.date>=cutS).sort((a,b)=>a.date.localeCompare(b.date));
+  const pts=[];
+  sess.forEach(s=>{
+    const p=s.programs.find(p=>p.code===code);if(!p)return;
+    const t=p.stos.flatMap(st=>[...(st.trials||[]),...(st.blocks||[]).flat()]).filter(t=>t);
+    if(!t.length)return;
+    pts.push({
+      d:s.date.slice(5),
+      plus:Math.round(t.filter(t=>t==='+').length/t.length*100),
+      pp:Math.round(t.filter(t=>t==='+'||t==='P').length/t.length*100)
+    });
+  });
+  S.charts.c3=new Chart(document.getElementById('c3').getContext('2d'),{
+    type:'line',
+    data:{labels:pts.map(p=>p.d),datasets:[
+      {label:'정반응(+%)',data:pts.map(p=>p.plus),borderColor:'#34d48a',backgroundColor:'rgba(52,212,138,.08)',borderWidth:2,pointRadius:5,pointBackgroundColor:'#34d48a',tension:.3,fill:true,yAxisID:'y'},
+      {label:'정+촉구(%)',data:pts.map(p=>p.pp),borderColor:'#4f8ef7',borderWidth:2,pointRadius:4,pointBackgroundColor:'#4f8ef7',tension:.3,borderDash:[4,3],fill:false,yAxisID:'y'}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{labels:{color:'#8b94b0',font:{size:11}}}},
+      scales:{x:{ticks:{color:'#4e5775',font:{size:11}},grid:{color:'rgba(255,255,255,.05)'}},
+        y:{min:0,max:100,ticks:{color:'#4e5775',font:{size:11},callback:v=>v+'%'},grid:{color:'rgba(255,255,255,.05)'}}}}
+  });
+}
+
+function copt(mn,mx,u=''){return{responsive:true,maintainAspectRatio:false,
+  plugins:{legend:{labels:{color:'#8b94b0',font:{size:11}}},tooltip:{callbacks:{label:c=>` ${c.parsed.y}${u}`}}},
+  scales:{x:{ticks:{color:'#4e5775',font:{size:11}},grid:{color:'rgba(255,255,255,.05)'}},
+    y:{min:mn,max:mx,ticks:{color:'#4e5775',font:{size:11}},grid:{color:'rgba(255,255,255,.05)'}}}};}
+function dc(id){if(S.charts[id]){S.charts[id].destroy();delete S.charts[id];}}
+
+// ════ 히스토리 ════
+function renderHist() {
+  const b=document.getElementById('histBody');
+  if(!S.child){b.innerHTML='<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text3)">아동을 선택해주세요</td></tr>';return;}
+  // sessionArchive 우선, 없으면 sessions 배열
+  const allArchive = Object.values(DB.sessionArchive).flat();
+  const fromSessions = DB.sessions.filter(s=>!allArchive.find(a=>a.id===s.id));
+  const sess = [...allArchive, ...fromSessions]
+    .filter(s=>s.childId===S.child.id)
+    .sort((a,b)=>b.date.localeCompare(a.date));
+  if(!sess.length){b.innerHTML='<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text3)">기록이 없습니다</td></tr>';return;}
+  b.innerHTML=sess.flatMap(s=>s.programs.flatMap(p=>p.stos.map((sto,si)=>{
+    const t=[...(sto.trials||[]),...(sto.blocks||[]).flat()].filter(t=>t);
+    if(!t.length)return '';
+    const pct=Math.round(t.filter(t=>t==='+').length/t.length*100);
+    const pp=Math.round(t.filter(t=>t==='+'||t==='P').length/t.length*100);
+    const bc=pct>=80?'badge bg-g':pct>=50?'badge bg-b':'badge bg-r';
+    return `<tr>
+      <td style="font-family:var(--mono);font-size:11px">${s.date}</td>
+      <td><span style="color:var(--accent);font-family:var(--mono);margin-right:5px">${p.code}</span>${p.name}</td>
+      <td style="font-size:11px;color:var(--text3)">${sto.name}</td>
+      <td style="font-family:var(--mono)">${t.length}회</td>
+      <td><span class="${bc}">${pct}%</span> <span style="font-size:10px;color:var(--text3)">(P포함 ${pp}%)</span></td>
+      <td style="color:var(--text3)">${s.therapist}</td>
+    </tr>`;
+  }))).filter(Boolean).join('');
+}
+
+// ════ 아동 관리 (추가+수정) ════
+function renderChildSel() {
+  const s=document.getElementById('childSel');
+  s.innerHTML='<option value="">-- 선택 --</option>';
+  DB.children.forEach(c=>{s.innerHTML+=`<option value="${c.id}">${c.name}</option>`;});
+  if(S.child)s.value=S.child.id;
+}
+
+async function onChild(id) {
+  S.child=DB.children.find(c=>c.id===id)||null;
+  if(S.child){
+    document.getElementById('rec-meta').textContent=`${S.child.name} · VB-MAPP ${S.child.vbmapp} · PEAK ${S.child.peak}`;
+    // 클라우드에서 이 아동의 custom STO 불러오기 (마스터 데이터 변경 없음)
+    if(IS_ONLINE){
+      await loadCustomStosFromCloud(S.child.id);
+    }
+  }
+  if(S.page==='graph')renderG();
+  if(S.page==='hist')renderHist();
+}
+
+function renderKids() {
+  const g=document.getElementById('kgrid');
+  if(!DB.children.length){g.innerHTML='<div style="color:var(--text3)">등록된 아동이 없습니다</div>';return;}
+  g.innerHTML=DB.children.map(c=>{
+    const n=DB.sessions.filter(s=>s.childId===c.id).length;
+    const last=DB.sessions.filter(s=>s.childId===c.id).sort((a,b)=>b.date.localeCompare(a.date))[0];
+    return `<div class="ccard">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div style="width:38px;height:38px;border-radius:50%;background:rgba(79,142,247,.2);display:flex;align-items:center;justify-content:center;font-size:17px">👦</div>
+        <div>
+          <div style="font-weight:500">${c.name}</div>
+          <div style="font-size:11px;color:var(--text3)">${c.diag||'-'}</div>
+        </div>
+        <button class="btn btn-ghost btn-sm" style="margin-left:auto;padding:3px 8px;font-size:10px" onclick="openEditChild('${c.id}')">✏ 수정</button>
+      </div>
+      <div style="font-size:11px;color:var(--text2);line-height:1.9">
+        VB-MAPP ${c.vbmapp} · PEAK ${c.peak}<br>
+        총 ${n}회 세션 · 단가 ${(c.rate||0).toLocaleString()}원<br>
+        <span style="color:var(--text3)">최근: ${last?last.date:'없음'}</span>
+      </div>
+      ${c.note?`<div style="margin-top:8px;font-size:11px;color:var(--text3);border-top:1px solid var(--border);padding-top:6px">${c.note}</div>`:''}
+      <div style="margin-top:8px;display:flex;gap:6px">
+        <button class="btn btn-primary btn-sm" style="flex:1;justify-content:center" onclick="quickSel('${c.id}')">세션 기록 →</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openAddChild() {
+  document.getElementById('childModalTitle').textContent='아동 추가';
+  document.getElementById('edit-child-id').value='';
+  ['nc-n','nc-b','nc-d','nc-note'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('nc-v').value='2';
+  document.getElementById('nc-p').value='Generalization';
+  document.getElementById('nc-r').value='80000';
+  document.getElementById('childModal').classList.add('open');
+}
+
+function openEditChild(id) {
+  const c=DB.children.find(x=>x.id===id);if(!c)return;
+  document.getElementById('childModalTitle').textContent='아동 수정';
+  document.getElementById('edit-child-id').value=id;
+  document.getElementById('nc-n').value=c.name||'';
+  document.getElementById('nc-b').value=c.birth||'';
+  document.getElementById('nc-d').value=c.diag||'';
+  document.getElementById('nc-v').value=c.vbmapp||'2';
+  document.getElementById('nc-p').value=c.peak||'Generalization';
+  document.getElementById('nc-r').value=c.rate||80000;
+  document.getElementById('nc-note').value=c.note||'';
+  document.getElementById('childModal').classList.add('open');
+}
+
+async function saveChild() {
+  const name=document.getElementById('nc-n').value.trim();
+  if(!name){showToast('이름을 입력해주세요','err');return;}
+  const editId=document.getElementById('edit-child-id').value;
+  const data={
+    name, birth:document.getElementById('nc-b').value,
+    diag:document.getElementById('nc-d').value,
+    vbmapp:parseInt(document.getElementById('nc-v').value),
+    peak:document.getElementById('nc-p').value,
+    rate:parseInt(document.getElementById('nc-r').value)||80000,
+    note:document.getElementById('nc-note').value
+  };
+
+  // Supabase 저장 (온라인이면)
+  const cloudId = await saveChildToCloud(data, editId||null);
+
+  if(editId){
+    const idx=DB.children.findIndex(c=>c.id===editId);
+    if(idx!==-1) DB.children[idx]={...DB.children[idx],...data};
+    showToast('수정됐습니다' + (IS_ONLINE?' (클라우드 저장됨)':''),'ok');
+  } else {
+    // 클라우드에서 받은 UUID 사용, 오프라인이면 임시 ID
+    const newId = cloudId || ('c'+Date.now());
+    DB.children.push({id:newId,...data});
+    showToast(`${name} 추가됐습니다` + (IS_ONLINE?' (클라우드 저장됨)':''),'ok');
+  }
+  save();renderChildSel();renderKids();closeModal('childModal');
+}
+
+function quickSel(id){document.getElementById('childSel').value=id;onChild(id);go('rec');}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+
+function doExport() {
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(DB,null,2)],{type:'application/json'}));
+  a.download=`ABA_${new Date().toISOString().split('T')[0]}.json`;a.click();
+  showToast('내보내기 완료','ok');
+}
+
+// ════ 페이지 전환 ════
+function go(page) {
+  ['rec','programs','graph','hist','kids'].forEach(p=>{
+    document.getElementById('p-'+p)?.classList.toggle('hidden',p!==page);
+    document.getElementById('n-'+p)?.classList.toggle('active',p===page);
+  });
+  S.page=page;
+  if(page==='graph')renderG();
+  if(page==='hist')renderHist();
+  if(page==='programs'){renderProgListPeak();}
+}
+
+// ════ 토스트 ════
+let tt;
+function showToast(msg,t=''){
+  const el=document.getElementById('toast');
+  el.textContent=msg;el.className=`toast ${t} show`;
+  clearTimeout(tt);tt=setTimeout(()=>el.classList.remove('show'),2800);
+}
+
+init();
+</script>
+</body>
+</html>
