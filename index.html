@@ -434,6 +434,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 // 아래 두 값을 본인 Supabase 프로젝트의 값으로 교체하세요
 const SUPA_URL = 'https://fkjjbgontwvznouxsmjl.supabase.co';
 const SUPA_KEY = 'sb_publishable_dz-n82-UGp6VqF2tDm9W7Q_4x-uwdmG';
+
 const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
 
 // 온라인 여부 감지
@@ -518,13 +519,9 @@ async function saveChildToCloud(data, editId) {
 async function saveSessionToCloud(sessionData) {
   if (!IS_ONLINE) return;
   try {
-    // student_id가 UUID인지 확인 (로컬 임시 ID 'c123...' 형식이면 스킵)
     const sid = sessionData.childId;
-    if (!sid || sid.startsWith('c') && sid.length < 20) {
-      console.warn('saveSession: student_id가 UUID가 아님, 스킵');
-      return;
-    }
-    // session_records에 content로 전체 저장 (upsert: session_date+student_id 기준)
+    if (!sid) { console.warn('saveSession: childId 없음'); return; }
+
     const row = {
       student_id: sid,
       session_date: sessionData.date,
@@ -534,22 +531,14 @@ async function saveSessionToCloud(sessionData) {
       condition: sessionData.condition || '보통',
       updated_at: new Date().toISOString()
     };
-    // 같은 날짜+아동 기록이 있으면 업데이트, 없으면 insert
-    const { data: existing } = await supa
-      .from('session_records')
-      .select('id')
-      .eq('student_id', sid)
-      .eq('session_date', sessionData.date)
-      .eq('content->>id', sessionData.id);
-    
-    if (existing && existing.length > 0) {
-      const { error } = await supa.from('session_records')
-        .update(row).eq('id', existing[0].id);
-      if (error) throw error;
-    } else {
-      const { error } = await supa.from('session_records').insert(row);
-      if (error) throw error;
+
+    // 단순 insert — 매 저장마다 새 행 추가
+    const { error } = await supa.from('session_records').insert(row);
+    if (error) {
+      console.error('saveSession 에러:', error);
+      throw error;
     }
+    console.log('세션 클라우드 저장 성공');
   } catch(e) { console.warn('saveSession 실패:', e); }
 }
 
@@ -1413,7 +1402,7 @@ function resetBoard() {
 }
 
 // ════ 세션 저장 ════
-function saveSess() {
+async function saveSess() {
   if (!S.child) { showToast('아동을 선택해주세요','err'); return; }
   saveMemo();
   const progs = Object.values(S.board).filter(p=>
@@ -1455,10 +1444,11 @@ function saveSess() {
   S.editingSessionId = null;
   save();
 
-  // Supabase 클라우드 저장 (비동기, 실패해도 로컬은 유지)
-  saveSessionToCloud(sessionData).then(() => {
-    if (IS_ONLINE) showToast('클라우드에도 저장됨 ☁️','ok');
-  });
+  // Supabase 클라우드 저장
+  if (IS_ONLINE) {
+    await saveSessionToCloud(sessionData);
+    showToast('클라우드 저장 완료 ☁️','ok');
+  }
 }
 
 // ════ 프로그램 편집 페이지 ════
