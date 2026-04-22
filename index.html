@@ -453,7 +453,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 // ════ Supabase 설정 ════
 // 아래 두 값을 본인 Supabase 프로젝트의 값으로 교체하세요
 const SUPA_URL = 'https://fkjjbgontwvznouxsmjl.supabase.co';
-const SUPA_KEY = 'sb_publishable_dz-n82-UGp6VqF2tDm9W7Q_4x-uwdmG';
+const SUPA_KEY = 'sb_publishable_dz-n82-UGp6VqF2tDm9W7Q_4x-uwdmG'; 
 const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
 
 // 온라인 여부 감지
@@ -634,37 +634,35 @@ async function loadAllSessionsFromCloud(studentId) {
 // ── Supabase: 개별과제 + customStos 저장 ──
 async function saveAppDataToCloud() {
   if (!IS_ONLINE) return;
-  const studentId = S.child?.id;
   try {
-    // custom_programs 테이블에 앱 전체 설정 저장 (program_id='__app_data__' 사용)
     const appData = {
       customPrograms: DB.customPrograms || [],
       customStos: DB.customStos || {}
     };
-    const { error } = await supa.from('custom_programs').upsert({
-      student_id: studentId || '00000000-0000-0000-0000-000000000000',
-      program_id: '__app_data__',
-      custom_sto: appData,
+    const { error } = await supa.from('app_settings').upsert({
+      key: 'app_data',
+      value: appData,
       updated_at: new Date().toISOString()
-    }, { onConflict: 'student_id,program_id' });
+    }, { onConflict: 'key' });
     if (error) throw error;
+    console.log('앱 데이터 저장 완료 (개별과제:', DB.customPrograms?.length, '개)');
   } catch(e) { console.warn('saveAppData 실패:', e); }
 }
 
 async function loadAppDataFromCloud() {
   if (!IS_ONLINE) return;
   try {
-    const { data, error } = await supa.from('custom_programs')
-      .select('custom_sto')
-      .eq('program_id', '__app_data__')
-      .limit(1);
-    if (error || !data?.length) return;
-    const appData = data[0].custom_sto;
+    const { data, error } = await supa.from('app_settings')
+      .select('value')
+      .eq('key', 'app_data')
+      .single();
+    if (error || !data) return;
+    const appData = data.value;
     if (appData?.customPrograms?.length) {
       DB.customPrograms = appData.customPrograms;
     }
     if (appData?.customStos && Object.keys(appData.customStos).length) {
-      DB.customStos = {...(DB.customStos||{}), ...appData.customStos};
+      DB.customStos = { ...(DB.customStos||{}), ...appData.customStos };
     }
     save();
     console.log('앱 데이터 로드 완료 (개별과제:', DB.customPrograms?.length, '개)');
