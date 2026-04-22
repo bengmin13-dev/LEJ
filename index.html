@@ -631,6 +631,46 @@ async function loadAllSessionsFromCloud(studentId) {
   } catch(e) { console.warn('loadAllSessions 실패:', e); }
 }
 
+// ── Supabase: 개별과제 + customStos 저장 ──
+async function saveAppDataToCloud() {
+  if (!IS_ONLINE) return;
+  const studentId = S.child?.id;
+  try {
+    // custom_programs 테이블에 앱 전체 설정 저장 (program_id='__app_data__' 사용)
+    const appData = {
+      customPrograms: DB.customPrograms || [],
+      customStos: DB.customStos || {}
+    };
+    const { error } = await supa.from('custom_programs').upsert({
+      student_id: studentId || '00000000-0000-0000-0000-000000000000',
+      program_id: '__app_data__',
+      custom_sto: appData,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'student_id,program_id' });
+    if (error) throw error;
+  } catch(e) { console.warn('saveAppData 실패:', e); }
+}
+
+async function loadAppDataFromCloud() {
+  if (!IS_ONLINE) return;
+  try {
+    const { data, error } = await supa.from('custom_programs')
+      .select('custom_sto')
+      .eq('program_id', '__app_data__')
+      .limit(1);
+    if (error || !data?.length) return;
+    const appData = data[0].custom_sto;
+    if (appData?.customPrograms?.length) {
+      DB.customPrograms = appData.customPrograms;
+    }
+    if (appData?.customStos && Object.keys(appData.customStos).length) {
+      DB.customStos = {...(DB.customStos||{}), ...appData.customStos};
+    }
+    save();
+    console.log('앱 데이터 로드 완료 (개별과제:', DB.customPrograms?.length, '개)');
+  } catch(e) { console.warn('loadAppData 실패:', e); }
+}
+
 // ── Supabase: custom STO 저장 (마스터 데이터 절대 변경 안 함) ──
 async function saveCustomStoToCloud(studentId, programId, stos) {
   if (!IS_ONLINE || !studentId) return;
@@ -885,6 +925,7 @@ async function init() {
   await checkOnline();
   if (IS_ONLINE) {
     showToast('Supabase 연결됨 — 데이터 동기화 중...','ok');
+    await loadAppDataFromCloud();   // 개별과제 + customStos 먼저
     await syncStudentsFromCloud();
   } else {
     if (!DB.children.length) addSample();
@@ -1758,7 +1799,7 @@ function addCustomSTO(code, source) {
   if (!name) return;
   ensureCustomStos(code);
   DB.customStos[code].push(name);
-  save(); refreshProgList();
+  save(); saveAppDataToCloud(); refreshProgList();
   showToast('STO 추가됨','ok');
 }
 
@@ -1771,7 +1812,7 @@ function resetCustomSTO(code) {
     || (DB.customPrograms||[]).find(x=>x.c===code);
   const originalStos = (lto?.stos||[]).map(s=>typeof s==='string'?s:s.name);
   DB.customStos[code] = [...originalStos];
-  save(); refreshProgList();
+  save(); saveAppDataToCloud(); refreshProgList();
   showToast('기본값으로 복원됐습니다');
 }
 
@@ -1814,7 +1855,7 @@ function deleteLTO(uid) {
   // _id 기준으로 삭제 (같은 코드여도 개별 삭제)
   if (!confirm('이 과제를 삭제할까요?')) return;
   DB.customPrograms = (DB.customPrograms||[]).filter(p=>(p._id||p.c)!==uid);
-  save(); renderProgListCustom();
+  save(); saveAppDataToCloud(); renderProgListCustom();
   showToast('삭제됨');
 }
 
@@ -1862,6 +1903,7 @@ function saveLTO() {
     showToast(`"${name}" 추가됨`,'ok');
   }
   save();
+  saveAppDataToCloud();
   closeModal('addLTOModal');
   renderProgListCustom();
   buildCustomPicker();
