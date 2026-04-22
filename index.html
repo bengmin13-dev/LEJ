@@ -347,7 +347,18 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
       <div class="cc"><div class="cc-t"><span class="dot"></span>독립반응률 추이</div><div class="cw"><canvas id="c1"></canvas></div></div>
       <div class="cc"><div class="cc-t"><span class="dot" style="background:var(--purple)"></span>점수 분포</div><div class="cw"><canvas id="c2"></canvas></div></div>
     </div>
-    <div class="cc"><div class="cc-t"><span class="dot" style="background:var(--green)"></span>프로그램별 정반응률</div><div id="pbars"></div></div>
+    <div class="cc">
+      <div class="cc-t">
+        <span class="dot" style="background:var(--green)"></span>정반응률
+        <div style="display:flex;gap:4px;margin-left:auto">
+          <button class="btn btn-ghost btn-sm" id="barTab-lto" style="padding:3px 9px;font-size:10px;background:rgba(79,142,247,.15);color:var(--accent);border-color:rgba(79,142,247,.5)"
+            onclick="switchBarTab('lto')">LTO별</button>
+          <button class="btn btn-ghost btn-sm" id="barTab-area" style="padding:3px 9px;font-size:10px"
+            onclick="switchBarTab('area')">VB-MAPP 영역별</button>
+        </div>
+      </div>
+      <div id="pbars"></div>
+    </div>
     <div class="cc">
       <div class="cc-t"><span class="dot" style="background:var(--amber)"></span>프로그램 상세 추이</div>
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
@@ -1672,6 +1683,8 @@ function buildLTOCard(lto, source) {
   const hasCustom = !!customStos;
 
   const sourceLabel = source==='peak'?'PEAK Gen':source==='vbmapp'?'VB-MAPP':'개별';
+  // 저장된 STO 수 표시
+  const stoCount = stos.length;
 
   const stoRows = stos.map((sname, i) => `
     <div class="sto-item" id="sto-item-${lto.c}-${i}">
@@ -1688,7 +1701,7 @@ function buildLTOCard(lto, source) {
       <span class="lto-toggle" id="lto-toggle-${lto.c}">▶</span>
       <span class="lto-code">${lto.c}</span>
       <span class="lto-name-text">${lto.n.replace(/"/g,'&quot;')}</span>
-      <span class="lto-source" style="${hasCustom?'border-color:var(--amber);color:var(--amber)':''}">${sourceLabel}${hasCustom?' ✎':''}</span>
+      <span class="lto-source" style="${hasCustom?'border-color:var(--amber);color:var(--amber)':''}">${sourceLabel} · STO ${stoCount}개${hasCustom?' ✎':''}</span>
       ${source==='custom'
         ? `<button class="btn btn-ghost btn-sm" style="padding:2px 7px;font-size:10px;margin-left:4px"
             onclick="event.stopPropagation();openEditLTO('${lto._id||lto.c}')">수정</button>
@@ -1752,10 +1765,15 @@ function addCustomSTO(code, source) {
 
 // 기본값 복원
 function resetCustomSTO(code) {
-  if (!confirm('커스텀 STO를 삭제하고 기본값으로 복원할까요?')) return;
-  delete DB.customStos[code];
+  if (!confirm('기본 STO로 복원할까요?')) return;
+  // 마스터 원본 STO를 명시적으로 DB.customStos에 저장 (영속 유지)
+  const lto = PEAK_PROGS.find(x=>x.c===code)
+    || VBMAPP_FLAT.find(x=>x.c===code)
+    || (DB.customPrograms||[]).find(x=>x.c===code);
+  const originalStos = (lto?.stos||[]).map(s=>typeof s==='string'?s:s.name);
+  DB.customStos[code] = [...originalStos];
   save(); refreshProgList();
-  showToast('기본값으로 복원됨');
+  showToast('기본값으로 복원됐습니다');
 }
 
 // DB.customStos에 해당 코드가 없으면 기본 STO로 초기화
@@ -1869,8 +1887,8 @@ function renderG() {
     : 0;
 
   const pm = {};
+  S._pm = pm; // renderBarContent에서 참조용
   sess.forEach(s=>s.programs.forEach(p=>{
-    // 동일 LTO 묶기: 코드가 같으면 같은 버킷
     const key = p.code;
     if (!pm[key]) pm[key]={name:p.name, code:p.code, trials:[], stoData:{}};
     // 전체 trials
@@ -1931,24 +1949,79 @@ function renderG() {
       plugins:{legend:{position:'right',labels:{color:'#8b94b0',font:{size:11},boxWidth:12}}}}
   });
 
-  const sorted=Object.entries(pm)
-    .map(([code,d])=>({code,name:d.name,pct:Math.round(d.trials.filter(t=>t==='+').length/Math.max(d.trials.length,1)*100),stoData:d.stoData}))
-    .sort((a,b)=>b.pct-a.pct).slice(0,12);
-  document.getElementById('pbars').innerHTML=sorted.map(p=>{
-    const color=p.pct>=80?'var(--green)':p.pct>=50?'var(--accent)':'var(--red)';
-    return `<div class="pb-row">
-      <div class="pb-head">
-        <span><span style="font-family:var(--mono);color:var(--accent);margin-right:5px">${p.code}</span>${p.name}</span>
-        <span style="font-family:var(--mono);color:${color};font-weight:600">${p.pct}%</span>
-      </div>
-      <div class="pb"><div class="pb-fill" style="width:${p.pct}%;background:${color}"></div></div>
-    </div>`;
-  }).join('');
-
+  // pbars는 renderBarContent에서 처리
   const detSel=document.getElementById('detSel');
   detSel.innerHTML='<option value="">-- 선택 --</option>';
   Object.keys(pm).forEach(code=>{detSel.innerHTML+=`<option value="${code}">${code} ${pm[code].name}</option>`;});
+
+  // VB-MAPP 영역별 집계 저장
+  S._areaData = {};
+  VBMAPP_AREAS.forEach(area=>{
+    const areaTrials=[];
+    Object.values(area.levels).forEach(progs=>{
+      progs.forEach(p=>{
+        if(pm[p.c]) areaTrials.push(...pm[p.c].trials);
+      });
+    });
+    if(areaTrials.length) S._areaData[area.name]={short:area.short,trials:areaTrials};
+  });
+
+  // 현재 탭 유지
+  const activeBarTab = document.getElementById('barTab-lto')?.style.background?.includes('142') ? 'lto' : 'area';
+  renderBarContent(activeBarTab==='area'?'area':'lto');
 }
+
+function switchBarTab(tab) {
+  const ltoBtn=document.getElementById('barTab-lto');
+  const areaBtn=document.getElementById('barTab-area');
+  if(ltoBtn) { ltoBtn.style.background=tab==='lto'?'rgba(79,142,247,.15)':'transparent'; ltoBtn.style.color=tab==='lto'?'var(--accent)':'var(--text2)'; ltoBtn.style.borderColor=tab==='lto'?'rgba(79,142,247,.5)':'var(--border)'; }
+  if(areaBtn) { areaBtn.style.background=tab==='area'?'rgba(79,142,247,.15)':'transparent'; areaBtn.style.color=tab==='area'?'var(--accent)':'var(--text2)'; areaBtn.style.borderColor=tab==='area'?'rgba(79,142,247,.5)':'var(--border)'; }
+  renderBarContent(tab);
+}
+
+function renderBarContent(tab) {
+  const wrap = document.getElementById('pbars');
+  if (!wrap) return;
+  if (tab === 'area') {
+    const areaData = S._areaData || {};
+    const sorted = Object.entries(areaData)
+      .map(([name,d]) => ({name, short:d.short, pct:Math.round(d.trials.filter(t=>t==='+').length/Math.max(d.trials.length,1)*100), cnt:d.trials.length}))
+      .sort((a,b) => b.pct - a.pct);
+    if (!sorted.length) {
+      wrap.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:8px">VB-MAPP 데이터가 없습니다</div>';
+      return;
+    }
+    wrap.innerHTML = sorted.map(p => {
+      const color = p.pct>=80?'var(--green)':p.pct>=50?'var(--accent)':'var(--red)';
+      return `<div class="pb-row">
+        <div class="pb-head">
+          <span style="font-weight:500">${p.name}</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:10px;color:var(--text3)">${p.cnt}회</span>
+            <span style="font-family:var(--mono);color:${color};font-weight:600">${p.pct}%</span>
+          </div>
+        </div>
+        <div class="pb"><div class="pb-fill" style="width:${p.pct}%;background:${color}"></div></div>
+      </div>`;
+    }).join('');
+  } else {
+    const pmRef = S._pm || {};
+    const sorted = Object.entries(pmRef)
+      .map(([code,d]) => ({code, name:d.name, pct:Math.round(d.trials.filter(t=>t==='+').length/Math.max(d.trials.length,1)*100)}))
+      .sort((a,b) => b.pct - a.pct).slice(0, 12);
+    wrap.innerHTML = sorted.map(p => {
+      const color = p.pct>=80?'var(--green)':p.pct>=50?'var(--accent)':'var(--red)';
+      return `<div class="pb-row">
+        <div class="pb-head">
+          <span><span style="font-family:var(--mono);color:var(--accent);margin-right:5px">${p.code}</span>${p.name}</span>
+          <span style="font-family:var(--mono);color:${color};font-weight:600">${p.pct}%</span>
+        </div>
+        <div class="pb"><div class="pb-fill" style="width:${p.pct}%;background:${color}"></div></div>
+      </div>`;
+    }).join('');
+  }
+}
+
 
 function renderDet() {
   const code = document.getElementById('detSel').value;
