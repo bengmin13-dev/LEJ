@@ -350,9 +350,15 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <div class="cc"><div class="cc-t"><span class="dot" style="background:var(--green)"></span>프로그램별 정반응률</div><div id="pbars"></div></div>
     <div class="cc">
       <div class="cc-t"><span class="dot" style="background:var(--amber)"></span>프로그램 상세 추이</div>
-      <select id="detSel" onchange="renderDet()" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:5px 8px;font-size:11px;font-family:var(--font);outline:none;margin-bottom:10px">
-        <option value="">-- 선택 --</option>
-      </select>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+        <select id="detSel" onchange="renderDet()" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:5px 8px;font-size:11px;font-family:var(--font);outline:none">
+          <option value="">-- 선택 --</option>
+        </select>
+        <select id="detViewMode" onchange="renderDet()" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:5px 8px;font-size:11px;font-family:var(--font);outline:none">
+          <option value="total">LTO 전체 합산</option>
+          <option value="sto">STO별 개별 라인</option>
+        </select>
+      </div>
       <div class="cw2"><canvas id="c3"></canvas></div>
     </div>
   </div>
@@ -436,7 +442,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 // ════ Supabase 설정 ════
 // 아래 두 값을 본인 Supabase 프로젝트의 값으로 교체하세요
 const SUPA_URL = 'https://fkjjbgontwvznouxsmjl.supabase.co';
-const SUPA_KEY = 'sb_publishable_dz-n82-UGp6VqF2tDm9W7Q_4x-uwdmG';
+const SUPA_KEY = 'sb_publishable_dz-n82-UGp6VqF2tDm9W7Q_4x-uwdmG'; // 재발급한 키 입력
+
 const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
 
 // 온라인 여부 감지
@@ -979,10 +986,9 @@ function toggleProg(code, name, source) {
       : source==='vbmapp'
       ? VBMAPP_FLAT.find(x=>x.c===code)
       : (DB.customPrograms||[]).find(x=>x.c===code);
-    // custom_sto 우선 (세션 내 변경은 DB.customStos에만, 마스터 원본 불변)
-    const baseStos = DB.customStos[code]
-      ? [...DB.customStos[code]]  // 복사본 사용
-      : (lto?.stos||['기본 STO']).map(sn => typeof sn==='string'?sn:(sn.name||'STO'));
+    // 세션 보드는 항상 마스터 원본 STO 사용
+    // (프로그램 편집의 customStos와 완전 격리 — 양방향 영향 없음)
+    const baseStos = (lto?.stos||['기본 STO']).map(sn => typeof sn==='string'?sn:(sn.name||'STO'));
     const stos = baseStos.map(sn => ({ name:sn, trials:Array(10).fill(null), blocks:[], memo:'' }));
     S.board[code] = { code, name, source, stos, currentSto:0, memo:'' };
     chip?.classList.add('on');
@@ -1572,9 +1578,15 @@ function buildSessionData() {
 async function saveSess() {
   if (!S.child) { showToast('아동을 선택해주세요','err'); return; }
   saveMemo();
-  // 기록이 없어도 프로그램 추가만 해도 저장 (1번 요구사항)
   const progs = Object.values(S.board);
-  if (!progs.length) { showToast('추가된 프로그램이 없습니다','err'); return; }
+  // 프로그램이 없고 덮어쓰기 모드면 → 빈 상태로 저장 허용
+  if (!progs.length) {
+    if (S.editingSessionId) {
+      if (!confirm('프로그램이 없습니다. 빈 상태로 덮어쓰기 저장할까요?')) return;
+    } else {
+      showToast('추가된 프로그램이 없습니다','err'); return;
+    }
+  }
   const dateStr = document.getElementById('sDate').value;
   const sessionData = buildSessionData();
   if (!sessionData) { showToast('저장 오류','err'); return; }
@@ -1924,25 +1936,12 @@ function renderG() {
     .sort((a,b)=>b.pct-a.pct).slice(0,12);
   document.getElementById('pbars').innerHTML=sorted.map(p=>{
     const color=p.pct>=80?'var(--green)':p.pct>=50?'var(--accent)':'var(--red)';
-    // STO별 진행률
-    const stoRows = Object.entries(p.stoData||{}).map(([sname,trials])=>{
-      const sp=Math.round(trials.filter(t=>t==='+').length/Math.max(trials.length,1)*100);
-      const sc=sp>=80?'var(--green)':sp>=50?'var(--accent)':'var(--red)';
-      return `<div style="display:flex;align-items:center;gap:6px;padding:2px 0 2px 12px">
-        <span style="font-size:10px;color:var(--text3);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${sname}</span>
-        <span style="font-family:var(--mono);font-size:10px;color:${sc};min-width:28px;text-align:right">${sp}%</span>
-        <div style="width:60px;height:3px;background:var(--bg3);border-radius:2px;overflow:hidden">
-          <div style="width:${sp}%;height:100%;background:${sc};border-radius:2px"></div>
-        </div>
-      </div>`;
-    }).join('');
-    return `<div class="pb-row" style="margin-bottom:10px">
+    return `<div class="pb-row">
       <div class="pb-head">
         <span><span style="font-family:var(--mono);color:var(--accent);margin-right:5px">${p.code}</span>${p.name}</span>
         <span style="font-family:var(--mono);color:${color};font-weight:600">${p.pct}%</span>
       </div>
-      <div class="pb" style="margin-bottom:4px"><div class="pb-fill" style="width:${p.pct}%;background:${color}"></div></div>
-      ${stoRows}
+      <div class="pb"><div class="pb-fill" style="width:${p.pct}%;background:${color}"></div></div>
     </div>`;
   }).join('');
 
@@ -1952,35 +1951,72 @@ function renderG() {
 }
 
 function renderDet() {
-  const code=document.getElementById('detSel').value;
-  if(!code||!S.child)return;
+  const code = document.getElementById('detSel').value;
+  const viewMode = document.getElementById('detViewMode')?.value || 'total';
+  if (!code||!S.child) return;
   dc('c3');
   const days=parseInt(document.getElementById('gPer').value);
   const cut=new Date();cut.setDate(cut.getDate()-days);
   const cutS=cut.toISOString().split('T')[0];
-  const sess=DB.sessions.filter(s=>s.childId===S.child.id&&s.date>=cutS).sort((a,b)=>a.date.localeCompare(b.date));
-  const pts=[];
-  sess.forEach(s=>{
-    const p=s.programs.find(p=>p.code===code);if(!p)return;
-    const t=p.stos.flatMap(st=>[...(st.trials||[]),...(st.blocks||[]).flat()]).filter(t=>t);
-    if(!t.length)return;
-    pts.push({
-      d:s.date.slice(5),
-      plus:Math.round(t.filter(t=>t==='+').length/t.length*100),
-      pp:Math.round(t.filter(t=>t==='+'||t==='P').length/t.length*100)
+
+  const allArchive = Object.values(DB.sessionArchive).flat();
+  const fromSessions = DB.sessions.filter(s=>!allArchive.find(a=>a.id===s.id));
+  const sess=[...allArchive,...fromSessions]
+    .filter(s=>s.childId===S.child.id&&s.date>=cutS)
+    .sort((a,b)=>a.date.localeCompare(b.date));
+
+  const ctx=document.getElementById('c3').getContext('2d');
+  const colors=['#34d48a','#4f8ef7','#f5a623','#9b6dff','#f05656','#2ec4b6','#ff6b6b','#ffd93d'];
+
+  if (viewMode==='sto') {
+    // STO별 개별 라인
+    const stoMap={};
+    sess.forEach(s=>{
+      const p=s.programs.find(p=>p.code===code); if(!p)return;
+      p.stos.forEach(st=>{
+        const t=[...(st.trials||[]),...(st.blocks||[]).flat()].filter(t=>t);
+        if(!t.length)return;
+        if(!stoMap[st.name])stoMap[st.name]=[];
+        stoMap[st.name].push({d:s.date.slice(5),pct:Math.round(t.filter(t=>t==='+').length/t.length*100)});
+      });
     });
-  });
-  S.charts.c3=new Chart(document.getElementById('c3').getContext('2d'),{
-    type:'line',
-    data:{labels:pts.map(p=>p.d),datasets:[
-      {label:'정반응(+%)',data:pts.map(p=>p.plus),borderColor:'#34d48a',backgroundColor:'rgba(52,212,138,.08)',borderWidth:2,pointRadius:5,pointBackgroundColor:'#34d48a',tension:.3,fill:true,yAxisID:'y'},
-      {label:'정+촉구(%)',data:pts.map(p=>p.pp),borderColor:'#4f8ef7',borderWidth:2,pointRadius:4,pointBackgroundColor:'#4f8ef7',tension:.3,borderDash:[4,3],fill:false,yAxisID:'y'}
-    ]},
-    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
-      plugins:{legend:{labels:{color:'#8b94b0',font:{size:11}}}},
-      scales:{x:{ticks:{color:'#4e5775',font:{size:11}},grid:{color:'rgba(255,255,255,.05)'}},
-        y:{min:0,max:100,ticks:{color:'#4e5775',font:{size:11},callback:v=>v+'%'},grid:{color:'rgba(255,255,255,.05)'}}}}
-  });
+    const labels=[...new Set(Object.values(stoMap).flat().map(p=>p.d))].sort();
+    const datasets=Object.entries(stoMap).map(([name,pts],i)=>({
+      label:name,
+      data:labels.map(d=>{const f=pts.find(p=>p.d===d);return f!=null?f.pct:null;}),
+      borderColor:colors[i%colors.length],
+      backgroundColor:'transparent',
+      borderWidth:2,pointRadius:4,
+      pointBackgroundColor:colors[i%colors.length],
+      tension:.3,fill:false,spanGaps:true
+    }));
+    S.charts.c3=new Chart(ctx,{type:'line',data:{labels,datasets},
+      options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+        plugins:{legend:{labels:{color:'#8b94b0',font:{size:10},boxWidth:10}}},
+        scales:{x:{ticks:{color:'#4e5775',font:{size:11}},grid:{color:'rgba(255,255,255,.05)'}},
+          y:{min:0,max:100,ticks:{color:'#4e5775',font:{size:11},callback:v=>v+'%'},grid:{color:'rgba(255,255,255,.05)'}}}}
+    });
+  } else {
+    const pts=[];
+    sess.forEach(s=>{
+      const p=s.programs.find(p=>p.code===code);if(!p)return;
+      const t=p.stos.flatMap(st=>[...(st.trials||[]),...(st.blocks||[]).flat()]).filter(t=>t);
+      if(!t.length)return;
+      pts.push({d:s.date.slice(5),
+        plus:Math.round(t.filter(t=>t==='+').length/t.length*100),
+        pp:Math.round(t.filter(t=>t==='+'||t==='P').length/t.length*100)});
+    });
+    S.charts.c3=new Chart(ctx,{type:'line',
+      data:{labels:pts.map(p=>p.d),datasets:[
+        {label:'정반응(+%)',data:pts.map(p=>p.plus),borderColor:'#34d48a',backgroundColor:'rgba(52,212,138,.08)',borderWidth:2,pointRadius:5,pointBackgroundColor:'#34d48a',tension:.3,fill:true},
+        {label:'정+촉구(%)',data:pts.map(p=>p.pp),borderColor:'#4f8ef7',borderWidth:2,pointRadius:4,pointBackgroundColor:'#4f8ef7',tension:.3,borderDash:[4,3],fill:false}
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+        plugins:{legend:{labels:{color:'#8b94b0',font:{size:11}}}},
+        scales:{x:{ticks:{color:'#4e5775',font:{size:11}},grid:{color:'rgba(255,255,255,.05)'}},
+          y:{min:0,max:100,ticks:{color:'#4e5775',font:{size:11},callback:v=>v+'%'},grid:{color:'rgba(255,255,255,.05)'}}}}
+    });
+  }
 }
 
 function copt(mn,mx,u=''){return{responsive:true,maintainAspectRatio:false,
@@ -2027,8 +2063,10 @@ function renderChildSel() {
 }
 
 async function onChild(id) {
-  // 아동 전환 시 선택기 닫기
-  if (S.pickerOpen) togglePicker();
+  // 아동 전환 시 선택기 강제 닫기
+  S.pickerOpen = false;
+  document.getElementById('picker')?.classList.add('hidden');
+  document.getElementById('pickerBtn').textContent = '+ 프로그램 추가';
 
   S.child=DB.children.find(c=>c.id===id)||null;
   if(S.child){
