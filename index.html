@@ -2314,7 +2314,12 @@ function renderG() {
   const days = parseInt(document.getElementById('gPer').value);
   const cut = new Date(); cut.setDate(cut.getDate()-days);
   const cutS = cut.toISOString().split('T')[0];
-  const sess = DB.sessions.filter(s=>s.childId===S.child.id&&s.date>=cutS).sort((a,b)=>a.date.localeCompare(b.date));
+  // sessionArchive 우선, sessions 배열도 병합 (중복 제거)
+  const allArchive = Object.values(DB.sessionArchive).flat();
+  const fromSessions = DB.sessions.filter(s=>!allArchive.find(a=>a.id===s.id));
+  const sess = [...allArchive, ...fromSessions]
+    .filter(s=>s.childId===S.child.id&&s.date>=cutS)
+    .sort((a,b)=>a.date.localeCompare(b.date));
 
   const allT = sess.flatMap(s=>s.programs.flatMap(p=>
     p.stos.flatMap(st=>[...(st.trials||[]),...(st.blocks||[]).flat()])
