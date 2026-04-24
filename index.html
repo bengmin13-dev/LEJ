@@ -202,6 +202,27 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .fg input,.fg select,.fg textarea{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:7px 9px;font-size:12px;font-family:var(--font);outline:none}
 .fg input:focus,.fg select:focus,.fg textarea:focus{border-color:var(--accent)}
 
+/* ── 툴팁 ── */
+.chip-tooltip{position:absolute;z-index:200;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r);padding:8px 10px;font-size:11px;color:var(--text);min-width:160px;max-width:220px;box-shadow:0 4px 16px rgba(0,0,0,.5);pointer-events:none;line-height:1.6}
+.chip-tooltip .tt-code{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--accent);margin-bottom:4px}
+.chip-tooltip .tt-stos{color:var(--text2);font-size:10px}
+
+/* ── 세션 총평 메모 ── */
+.session-note{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:8px 10px;font-size:12px;font-family:var(--font);outline:none;resize:vertical;min-height:56px;line-height:1.6;display:block;margin-bottom:10px}
+.session-note:focus{border-color:var(--accent)}
+
+/* ── 과제별 메모 ── */
+.task-memo{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:6px 9px;font-size:11px;font-family:var(--font);outline:none;resize:none;line-height:1.5;display:block;margin-bottom:10px}
+.task-memo:focus{border-color:var(--amber)}
+
+/* ── 탭 X버튼 + 드래그 ── */
+.prog-tab .tab-x{display:none;margin-left:4px;font-size:11px;color:var(--text3);cursor:pointer;padding:0 2px;line-height:1}
+.prog-tab:hover .tab-x{display:inline}
+.prog-tab .tab-x:hover{color:var(--red)}
+.prog-tab.drag-over{border-color:var(--accent);background:rgba(79,142,247,.2)}
+.prog-tab{cursor:grab}
+.prog-tab.dragging{opacity:.4}
+
 /* ── 토스트 ── */
 .toast{position:fixed;bottom:18px;right:18px;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r);padding:9px 14px;font-size:12px;z-index:2000;opacity:0;transform:translateY(6px);transition:all .22s;max-width:260px}
 .toast.show{opacity:1;transform:translateY(0)}
@@ -229,6 +250,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <div class="nav-item" onclick="go('programs')" id="n-programs">🎯 프로그램 편집</div>
     <div class="nav-item" onclick="go('graph')" id="n-graph">📈 진행 그래프</div>
     <div class="nav-item" onclick="go('hist')" id="n-hist">📋 히스토리</div>
+    <div class="nav-item" onclick="go('attend')" id="n-attend">📅 출결 관리</div>
     <div class="nav-lbl" style="margin-top:8px">관리</div>
     <div class="nav-item" onclick="go('kids')" id="n-kids">👦 아동 관리</div>
     <div class="nav-item" onclick="doExport()">💾 내보내기</div>
@@ -270,6 +292,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
         <option value="나쁨">😞 나쁨</option>
       </select>
       <button class="btn btn-ghost btn-sm" onclick="togglePicker()" id="pickerBtn">+ 프로그램 추가</button>
+      <button class="btn btn-ghost btn-sm" onclick="addAdHocProgram()" title="이 세션에만 저장되는 임시 과제">⚡ 즉석 추가</button>
       <button class="btn btn-ghost btn-sm" onclick="showArchiveForDate()" id="archiveBtn" style="margin-left:auto">📂 기록 불러오기</button>
     </div>
     <!-- 날짜 아카이브 패널 -->
@@ -293,6 +316,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
         <div style="margin-top:8px;font-size:11px;color:var(--text3)">※ 프로그램 편집에서 개별 과제를 추가하세요</div>
       </div>
     </div>
+
+    <!-- 세션 총평 메모 -->
+    <textarea id="sessionNote" class="session-note"
+      placeholder="오늘 세션 총평 메모 (전반적인 컨디션, 환경, 특이사항 등)..."
+      onchange="S.sessionNote=this.value;autoSave()"></textarea>
 
     <!-- 탭 -->
     <div id="tabArea">
@@ -388,6 +416,29 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   </div>
 </div>
 
+<!-- ══ 출결 관리 ══ -->
+<div id="p-attend" class="hidden fade-in">
+  <div class="topbar">
+    <div class="topbar-title">출결 관리</div>
+    <div style="display:flex;gap:6px;align-items:center">
+      <select id="attendMonth" onchange="renderAttend()" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:5px 8px;font-size:11px;font-family:var(--font);outline:none"></select>
+      <button class="btn btn-primary btn-sm" onclick="exportExcel()">📊 엑셀 내보내기</button>
+    </div>
+  </div>
+  <div class="content">
+    <div class="cc" id="attendTable">
+      <div style="font-size:12px;color:var(--text3);padding:8px">월을 선택해주세요</div>
+    </div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:11px;color:var(--text2)">
+      <span><span style="color:var(--green)">●</span> 출석</span>
+      <span><span style="color:var(--amber)">●</span> 보강</span>
+      <span><span style="color:var(--red)">●</span> 결석</span>
+      <span><span style="color:var(--text3)">●</span> 취소</span>
+      <span style="color:var(--text3);margin-left:8px">※ 셀 클릭 시 상태 변경</span>
+    </div>
+  </div>
+</div>
+
 <!-- ══ 아동 관리 ══ -->
 <div id="p-kids" class="hidden fade-in">
   <div class="topbar"><div class="topbar-title">아동 관리</div><button class="btn btn-primary btn-sm" onclick="openAddChild()">+ 추가</button></div>
@@ -421,6 +472,13 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
       </select>
     </div>
     <div class="fg"><label>세션 단가</label><input type="number" id="nc-r" value="80000"></div>
+    <div class="fg"><label>주 참여 시간 (분)</label>
+      <select id="nc-dur">
+        <option value="40">40분</option>
+        <option value="50">50분</option>
+        <option value="80">80분</option>
+      </select>
+    </div>
     <div class="fg"><label>메모</label><textarea id="nc-note" rows="2" placeholder="특이사항, 주의사항..."></textarea></div>
     <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:14px">
       <button class="btn btn-ghost btn-sm" onclick="closeModal('childModal')">취소</button>
@@ -436,9 +494,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <input type="hidden" id="lto-edit-id">
     <div class="fg"><label>코드 (예: C-01)</label><input type="text" id="lto-code" placeholder="C-01"></div>
     <div class="fg"><label>장기 목표 (LTO)</label><input type="text" id="lto-name" placeholder="예: 이름 듣고 고개 돌리기"></div>
-    <div class="fg"><label>단기 목표 1 (STO)</label><input type="text" id="sto-1" placeholder="예: 1m 거리에서 이름 듣고 고개 돌리기 3/5"></div>
-    <div class="fg"><label>단기 목표 2</label><input type="text" id="sto-2" placeholder="(선택)"></div>
-    <div class="fg"><label>단기 목표 3</label><input type="text" id="sto-3" placeholder="(선택)"></div>
+    <div id="sto-fields">
+      <div class="fg"><label>단기 목표 1 (STO)</label><input type="text" class="sto-dynamic" placeholder="단기 목표 입력..."></div>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="addStoField()" style="margin-bottom:10px">+ STO 추가</button>
     <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:14px">
       <button class="btn btn-ghost btn-sm" onclick="closeModal('addLTOModal')">취소</button>
       <button class="btn btn-primary btn-sm" onclick="saveLTO()" id="ltoSaveBtn">추가</button>
@@ -447,13 +506,14 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 </div>
 
 <div class="toast" id="toast"></div>
+<div class="chip-tooltip hidden" id="chipTooltip"></div>
 
 <script>
 // ════ DB ════
 // ════ Supabase 설정 ════
 // 아래 두 값을 본인 Supabase 프로젝트의 값으로 교체하세요
 const SUPA_URL = 'https://fkjjbgontwvznouxsmjl.supabase.co';
-const SUPA_KEY = 'sb_publishable_dz-n82-UGp6VqF2tDm9W7Q_4x-uwdmG';
+const SUPA_KEY = 'sb_publishable_dz-n82-UGp6VqF2tDm9W7Q_4x-uwdmG'; 
 const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
 
 // 온라인 여부 감지
@@ -476,10 +536,11 @@ function updateSyncStatus() {
 // ════ DB (로컬 캐시) ════
 const DB = {
   children: [],
-  sessions: [],          // 현재 세션 (호환성 유지)
-  sessionArchive: {},    // { "2026-04-21": [ {id, timestamp, programs, ...} ] }
+  sessions: [],
+  sessionArchive: {},
   customPrograms: [],
-  customStos: {}         // { "LTO코드": ["STO1","STO2",...] } — custom_sto 우선
+  customStos: {},
+  attendance: {}   // { "2026-04-21": { "아동id": "출석"|"결석"|"보강"|"취소" } }
 };
 // ── 로컬 저장 (항상 실행 — 오프라인 백업) ──
 function save() {
@@ -655,9 +716,9 @@ async function loadAppDataFromCloud() {
     const { data, error } = await supa.from('app_settings')
       .select('value')
       .eq('key', 'app_data')
-      .single();
-    if (error || !data) return;
-    const appData = data.value;
+      .limit(1);
+    if (error || !data?.length) return;
+    const appData = data[0].value;
     if (appData?.customPrograms?.length) {
       DB.customPrograms = appData.customPrograms;
     }
@@ -873,27 +934,190 @@ const VBMAPP_FLAT = VBMAPP_AREAS.flatMap(area =>
 
 // ════ PEAK GEN 프로그램 (LTO + 기본 STO) ════
 const PEAK_PROGS = [
-  {c:'1A',n:'일반화된 동작 모방',lv:1, stos:['1m 이내 동작 모방 3/5','다양한 신체부위 동작 모방 4/5','새로운 동작 전이 모방 4/5']},
-  {c:'1B',n:'그룹별 분류·세기',lv:1, stos:['2종류 분류 3/5','3종류 분류 3/5','수량 세기 연결 4/5']},
-  {c:'2A',n:'기능별 대체',lv:2, stos:['3개 사물 기능 변별 3/5','5개 사물 기능 변별 4/5','새로운 기능 전이 4/5']},
-  {c:'2B',n:'택트: 비동일 동물',lv:2, stos:['친숙한 동물 5종 비동일 택트 3/5','새로운 동물 비동일 택트 4/5']},
-  {c:'3C',n:'아이스파이: 실패 견디기',lv:3, stos:['모를 때 "모르겠어요" 표현 3/5','힌트 요청하기 3/5','정답 틀렸을 때 적절한 반응 4/5']},
-  {c:'3D',n:'색상 음영 수용 변별',lv:3, stos:['유사 색조 2종 변별 3/5','유사 색조 4종 변별 4/5']},
-  {c:'4A',n:'항목 그룹 세기',lv:4, stos:['같은 카테고리 3개 세기 3/5','다양한 카테고리 세기 4/5']},
-  {c:'4B',n:'비동일 의류 수용 변별',lv:4, stos:['의류 3종 비동일 변별 3/5','의류 5종 비동일 변별 4/5']},
-  {c:'4C',n:'배제: 특징',lv:4, stos:['2개 배열에서 특징 다른 것 3/5','4개 배열에서 특징 다른 것 4/5']},
-  {c:'4F',n:"'뭐라고?' 묻기",lv:4, stos:['못 들었을 때 "뭐라고요?" 3/5','다양한 표현으로 재요청 4/5']},
-  {c:'5B',n:'색상 변화 택트',lv:5, stos:['그림 속 주요 색상 택트 3/5','음영 무관 색상 택트 4/5']},
-  {c:'5D',n:'부수적 반응 택트',lv:5, stos:['행동으로 감정 표현 택트 3/5','맥락 속 감정 택트 4/5']},
-  {c:'5F',n:'맨드 오퍼런트 확장',lv:5, stos:['5가지 다양한 맨드 표현 3/5','상황별 적절한 맨드 표현 4/5']},
-  {c:'5G',n:'일반화된 패터닝',lv:5, stos:['3요소 패턴 완성 3/5','4요소 패턴 완성 4/5','새로운 재료 패턴 전이 4/5']},
-  {c:'5H',n:'빈정거림 구별',lv:5, stos:['명백한 빈정거림 구별 3/5','미묘한 빈정거림 구별 4/5']},
-  {c:'6A',n:'택트: 비동일 사람',lv:6, stos:['친숙한 사람 비동일 사진 택트 3/5','낯선 각도 사진 택트 4/5']},
-  {c:'6G',n:'초보 조망 취하기',lv:6, stos:['다른 위치 관점 인식 3/5','사물 관점 취하기 4/5']},
-  {c:'7F',n:'차례 지키기',lv:7, stos:['1:1 차례 지키기 3/5','3인 이상 차례 지키기 4/5']},
-  {c:'7K',n:'청중 신뢰도',lv:7, stos:['모르는 것 인정하기 3/5','확실한 것과 불확실한 것 구분 4/5']},
-  {c:'9E',n:'표정에 반응하기',lv:9, stos:['기본 4가지 감정 표정 구별 3/5','복합 표정 구별 4/5']},
-  {c:'10L',n:'기다리기',lv:10, stos:['1분 기다리기 3/5','3분 기다리기 4/5','활동 전환 기다리기 4/5']},
+  {c:'1A',n:'일반화된 동작 모방',lv:1},
+  {c:'1B',n:'수학: 그룹별 분류 및 세기',lv:1},
+  {c:'2A',n:'언어내 반응: 기능별 대체',lv:2},
+  {c:'2B',n:'택트: 비동일 동물',lv:2},
+  {c:'3A',n:'유연한 텍스트 행동',lv:3},
+  {c:'3B',n:'창의성: 제어된 경로',lv:3},
+  {c:'3C',n:'아이스파이: 실패 견디기',lv:3},
+  {c:'3D',n:'색상 음영 수용 변별',lv:3},
+  {c:'4A',n:'항목 그룹 세기',lv:4},
+  {c:'4B',n:'수용 변별: 비동일 의류',lv:4},
+  {c:'4C',n:'배제: 특징',lv:4},
+  {c:'4D',n:'무게 측정',lv:4},
+  {c:'4E',n:'숫자·문자 매칭',lv:4},
+  {c:'4F',n:'\'뭐라고?\' 묻기',lv:4},
+  {c:'5A',n:'소근육: 열고 닫기',lv:5},
+  {c:'5B',n:'색상 변화 택트',lv:5},
+  {c:'5C',n:'레시피 측정',lv:5},
+  {c:'5D',n:'부수적 반응 택트',lv:5},
+  {c:'5E',n:'성조 에코익',lv:5},
+  {c:'5F',n:'맨드 오퍼런트 확장',lv:5},
+  {c:'5G',n:'일반화된 패터닝',lv:5},
+  {c:'5H',n:'빈정거림 구별',lv:5},
+  {c:'6A',n:'택트: 비동일 사람',lv:6},
+  {c:'6B',n:'택트/맨드 교차 오퍼런트',lv:6},
+  {c:'6C',n:'물건을 이용한 상상 놀이',lv:6},
+  {c:'6D',n:'추상화: 수 개념',lv:6},
+  {c:'6E',n:'도형 수용 변별',lv:6},
+  {c:'6F',n:'감각 느낌 택트',lv:6},
+  {c:'6G',n:'초보 조망 취하기',lv:6},
+  {c:'6H',n:'물체로 측정하기',lv:6},
+  {c:'6I',n:'형용사 맨드',lv:6},
+  {c:'6J',n:'오류 있는 택트 찾기',lv:6},
+  {c:'7A',n:'다양한 장면의 식물 택트',lv:7},
+  {c:'7B',n:'돈 쓰기',lv:7},
+  {c:'7C',n:'물건 없이 상상 놀이',lv:7},
+  {c:'7D',n:'왜곡된 택트',lv:7},
+  {c:'7E',n:'추상화: 몸짓 연기',lv:7},
+  {c:'7F',n:'친구와 차례 지키기',lv:7},
+  {c:'7G',n:'그림에 물건 매칭',lv:7},
+  {c:'7H',n:'문제 해결: 물건 담기',lv:7},
+  {c:'7I',n:'또래 모델 에코 놀이',lv:7},
+  {c:'7J',n:'특징으로 추상화',lv:7},
+  {c:'7K',n:'청중 신뢰도',lv:7},
+  {c:'7L',n:'에코익: 속도와 크기',lv:7},
+  {c:'8A',n:'행동 교정: 잘못된 사용 고치기',lv:8},
+  {c:'8B',n:'부사로 행동 택트',lv:8},
+  {c:'8C',n:'은유적 택트 확장',lv:8},
+  {c:'8D',n:'유연한 필기',lv:8},
+  {c:'8E',n:'창의성: 춤',lv:8},
+  {c:'8F',n:'상상 동물 그리기',lv:8},
+  {c:'8G',n:'수학 퍼즐: 패턴',lv:8},
+  {c:'8H',n:'방향 택트',lv:8},
+  {c:'8I',n:'수학과 시간',lv:8},
+  {c:'8J',n:'뭘 잘못하고 있나요?',lv:8},
+  {c:'8K',n:'글자 소리로 수용 변별',lv:8},
+  {c:'8L',n:'추상화: 이야기 장르',lv:8},
+  {c:'8M',n:'\'누구?\' 묻기',lv:8},
+  {c:'8N',n:'단어 속 글자 소리',lv:8},
+  {c:'9A',n:'형용사를 사용한 택트',lv:9},
+  {c:'9B',n:'개념: 지역사회 도우미',lv:9},
+  {c:'9C',n:'고급 대근육: 농구',lv:9},
+  {c:'9D',n:'문제 해결: 틱택토',lv:9},
+  {c:'9E',n:'표정에 반응하기',lv:9},
+  {c:'9F',n:'복잡한 패턴 추상화',lv:9},
+  {c:'9G',n:'기능으로 방 수용 변별',lv:9},
+  {c:'9H',n:'에코익: 리듬',lv:9},
+  {c:'9I',n:'감각 느낌 수용 변별',lv:9},
+  {c:'9J',n:'추정하기',lv:9},
+  {c:'9K',n:'유창성: 명사/동사 조합 택트',lv:9},
+  {c:'9L',n:'추상화: 누구일까요?',lv:9},
+  {c:'9M',n:'질량 균형',lv:9},
+  {c:'9N',n:'환유적 확장',lv:9},
+  {c:'9O',n:'유창성: 지시 따르기',lv:9},
+  {c:'9P',n:'유창성: 창의성',lv:9},
+  {c:'10A',n:'일반화된 덧셈',lv:10},
+  {c:'10B',n:'다양한 측정 단위',lv:10},
+  {c:'10C',n:'지연 후 그림 택트',lv:10},
+  {c:'10D',n:'필기: 점 잇기',lv:10},
+  {c:'10E',n:'텍스트: 이중 자음',lv:10},
+  {c:'10F',n:'일정/연쇄 방해 처리',lv:10},
+  {c:'10G',n:'다양한 도구로 필기',lv:10},
+  {c:'10H',n:'문제 해결: 도형 조합',lv:10},
+  {c:'10I',n:'기본 구두점',lv:10},
+  {c:'10J',n:'WH 질문 연결',lv:10},
+  {c:'10K',n:'추상화: 기능적 특성',lv:10},
+  {c:'10L',n:'기다리기',lv:10},
+  {c:'10M',n:'단어 재배열',lv:10},
+  {c:'10N',n:'언어내 반응: 청중 통제',lv:10},
+  {c:'10O',n:'택트/텍스트 교차 오퍼런트',lv:10},
+  {c:'10P',n:'고급 추상 패턴',lv:10},
+  {c:'10Q',n:'기능으로 추상화',lv:10},
+  {c:'10R',n:'블록 크기 배치',lv:10},
+  {c:'11A',n:'비동일 신체 부위 수용 변별',lv:11},
+  {c:'11B',n:'지연 후 그림 순서',lv:11},
+  {c:'11C',n:'노트 필기',lv:11},
+  {c:'11D',n:'비동일 음식 수용 변별',lv:11},
+  {c:'11E',n:'종류로 추상화',lv:11},
+  {c:'11F',n:'음절 박자 치기',lv:11},
+  {c:'11G',n:'유창성: 색상 수용 변별',lv:11},
+  {c:'11H',n:'텍스트 자료 변별',lv:11},
+  {c:'11I',n:'활동으로 계절 수용 변별',lv:11},
+  {c:'11J',n:'유창성: 세기',lv:11},
+  {c:'11K',n:'새로운 자극에 공감',lv:11},
+  {c:'11L',n:'순서대로 점 잇기',lv:11},
+  {c:'11M',n:'과거 행동 택트',lv:11},
+  {c:'11N',n:'언어내 반응: 라임 채우기',lv:11},
+  {c:'11O',n:'새로운 사람의 감정 택트',lv:11},
+  {c:'11P',n:'에코익: 기본 타이핑',lv:11},
+  {c:'11Q',n:'기술 활용',lv:11},
+  {c:'11R',n:'진행 중인 행동 택트',lv:11},
+  {c:'11S',n:'\'어디?\' 묻기',lv:11},
+  {c:'11T',n:'비동일 동물 수용 변별',lv:11},
+  {c:'12A',n:'목록으로 쇼핑',lv:12},
+  {c:'12B',n:'언어내 반응: 갈등 해결',lv:12},
+  {c:'12C',n:'미술 매체 수용 변별',lv:12},
+  {c:'12D',n:'문제 해결: 골프',lv:12},
+  {c:'12E',n:'주의 맨드',lv:12},
+  {c:'12F',n:'언어내 반응: 스몰 토크',lv:12},
+  {c:'12G',n:'오토클리틱: 확실/불확실',lv:12},
+  {c:'12H',n:'\'언제?\' 묻기',lv:12},
+  {c:'12I',n:'필기: 과거/미래 사건',lv:12},
+  {c:'12J',n:'활동으로 계절 택트',lv:12},
+  {c:'12K',n:'유창성: 고급 시각 탐색',lv:12},
+  {c:'12L',n:'지연 후 그림 수용 변별',lv:12},
+  {c:'12M',n:'자로 측정하기',lv:12},
+  {c:'12N',n:'다양한 라임 패턴의 시',lv:12},
+  {c:'12O',n:'기능/종류로 이름 택트',lv:12},
+  {c:'12P',n:'종류로 배제',lv:12},
+  {c:'12Q',n:'텍스트: 그림 퍼즐',lv:12},
+  {c:'12R',n:'문제 해결: 미로',lv:12},
+  {c:'12S',n:'기능으로 배제',lv:12},
+  {c:'12T',n:'내 생각을 봐라: 무엇을 생각하나?',lv:12},
+  {c:'12U',n:'비동일 음식 택트',lv:12},
+  {c:'12V',n:'청중 구성원 되기',lv:12},
+  {c:'13A',n:'그림 재현하기',lv:13},
+  {c:'13B',n:'점진적 회상',lv:13},
+  {c:'13C',n:'정보 생략하기',lv:13},
+  {c:'13D',n:'색상 혼합',lv:13},
+  {c:'13E',n:'추상화: 20가지 질문',lv:13},
+  {c:'13F',n:'가상 행동',lv:13},
+  {c:'13G',n:'창의적 필기: 그림',lv:13},
+  {c:'13H',n:'비동일 탈것 수용 변별',lv:13},
+  {c:'13I',n:'환경 속 도형 택트',lv:13},
+  {c:'13J',n:'패배 견디기',lv:13},
+  {c:'13K',n:'또래와 나누기',lv:13},
+  {c:'13L',n:'행사별 의류 종류',lv:13},
+  {c:'13M',n:'추상화: 영화 장르',lv:13},
+  {c:'13N',n:'논리 문제와 수수께끼',lv:13},
+  {c:'13O',n:'문제 해결: 수학 문장제',lv:13},
+  {c:'13P',n:'오토클리틱 맨드',lv:13},
+  {c:'13Q',n:'은유적 반응: 미래',lv:13},
+  {c:'13R',n:'대명사',lv:13},
+  {c:'13S',n:'텍스트/맨드 교차 오퍼런트',lv:13},
+  {c:'13T',n:'\'어떻게?\' 묻기',lv:13},
+  {c:'13U',n:'결합 속성 택트',lv:13},
+  {c:'13V',n:'사건 필기',lv:13},
+  {c:'13W',n:'택트/언어내 교차 오퍼런트',lv:13},
+  {c:'13X',n:'연속 에코 행동',lv:13},
+  {c:'14A',n:'비동일 의류 택트',lv:14},
+  {c:'14B',n:'맨드: 인위적 확립 조작',lv:14},
+  {c:'14C',n:'언어내 반응: 방의 기능',lv:14},
+  {c:'14D',n:'추상화: 문자 개념',lv:14},
+  {c:'14E',n:'일반화된 에코익',lv:14},
+  {c:'14F',n:'유창성: 그리기',lv:14},
+  {c:'14G',n:'텍스트/필기 교차 오퍼런트',lv:14},
+  {c:'14H',n:'필기: 다양한 출처',lv:14},
+  {c:'14I',n:'창의성: 경로',lv:14},
+  {c:'14J',n:'왜곡된 택트: 진실 두 개와 거짓 하나',lv:14},
+  {c:'14K',n:'비동일 탈것 택트',lv:14},
+  {c:'14L',n:'언어내 반응: 라임 시',lv:14},
+  {c:'14M',n:'추상화: 공공 동반',lv:14},
+  {c:'14N',n:'유창성: 시계 읽기',lv:14},
+  {c:'14O',n:'미신적 맨드',lv:14},
+  {c:'14P',n:'필기: 숫자 세트',lv:14},
+  {c:'14Q',n:'추상화: 음악 장르',lv:14},
+  {c:'14R',n:'재활용품 변별하기',lv:14},
+  {c:'14S',n:'간단한 행동 은유',lv:14},
+  {c:'14T',n:'이상한 상황의 행동 택트',lv:14},
+  {c:'14U',n:'개념: 지역사회 표지판',lv:14},
+  {c:'14V',n:'계산기 사용하기',lv:14},
+  {c:'14W',n:'돈 세기 일반화',lv:14},
+  {c:'14X',n:'언어내 반응: 타인에 대한 관심',lv:14},
+  {c:'14Y',n:'돈 조합 택트',lv:14},
+  {c:'14Z',n:'복수 택트',lv:14},
 ];
 
 // ════ 앱 상태 ════
@@ -907,7 +1131,9 @@ let S = {
   progTab: 'peak',
   charts: {},
   editingSessionId: null,
-  undoStack: [],   // [boardSnapshot] 전체 보드 스냅샷
+  undoStack: [],
+  sessionNote: '',  // 세션 총평 메모
+  tabOrder: [],     // 탭 순서 (드래그로 변경)
 };
 
 // ════ 초기화 ════
@@ -973,9 +1199,14 @@ function buildPicker() {
   w.innerHTML = lvs.map(lv => `
     <div class="lv-row">
       <span class="lv-lbl">Lv${lv}</span>
-      ${PEAK_PROGS.filter(p=>p.lv===lv).map(p =>
-        `<div class="chip" id="ch-${p.c}" onclick="toggleProg('${p.c}','${p.n.replace(/'/g,"\\'")}','peak')">${p.c}</div>`
-      ).join('')}
+      ${PEAK_PROGS.filter(p=>p.lv===lv).map(p => {
+        const sn = p.n.replace(/'/g,"\\'");
+        const tt = encodeURIComponent(p.c+'||'+p.n+'||'+(p.stos||[]).map((s,i)=>(i+1)+'. '+(typeof s==='string'?s:s.name)).join('|'));
+        return `<div class="chip" id="ch-${p.c}"
+          onclick="toggleProg('${p.c}','${sn}','peak')"
+          onmouseenter="showChipTip(event,'${tt}')"
+          onmouseleave="hideChipTip()">${p.c}</div>`;
+      }).join('')}
     </div>`).join('');
 }
 
@@ -1004,7 +1235,12 @@ function buildVbmappPicker() {
     const chips = Object.entries(area.levels).flatMap(([lv, progs]) =>
       progs.map(p => {
         const safeName = p.n.replace(/'/g,"\'").replace(/"/g,'&quot;');
-        return `<div class="chip" id="ch-${p.c}" onclick="toggleProg('${p.c}','${safeName}','vbmapp')" title="${p.n}">${p.c}</div>`;
+        const stoList = (p.stos||[]).map((s,i)=>`${i+1}. ${typeof s==='string'?s:s.name}`).join('|');
+        const tt = encodeURIComponent(p.c+'||'+p.n+'||'+stoList);
+        return `<div class="chip" id="ch-${p.c}"
+          onclick="toggleProg('${p.c}','${safeName}','vbmapp')"
+          onmouseenter="showChipTip(event,'${tt}')"
+          onmouseleave="hideChipTip()">${p.c}</div>`;
       })
     ).join('');
     return `<div class="lv-row">
@@ -1035,9 +1271,12 @@ function toggleProg(code, name, source) {
       : source==='vbmapp'
       ? VBMAPP_FLAT.find(x=>x.c===code)
       : (DB.customPrograms||[]).find(x=>x.c===code);
-    // 세션 보드는 항상 마스터 원본 STO 사용
-    // (프로그램 편집의 customStos와 완전 격리 — 양방향 영향 없음)
-    const baseStos = (lto?.stos||['기본 STO']).map(sn => typeof sn==='string'?sn:(sn.name||'STO'));
+    // 프로그램 편집에서 수정된 STO 우선 적용 (편집→세션 일방향)
+    // 세션 내 수정은 S.board에만 머물고 DB.customStos에 쓰지 않음
+    const editedStos = DB.customStos[code];
+    const baseStos = editedStos
+      ? [...editedStos]
+      : (lto?.stos||['기본 STO']).map(sn => typeof sn==='string'?sn:(sn.name||'STO'));
     const stos = baseStos.map(sn => ({ name:sn, trials:Array(10).fill(null), blocks:[], memo:'' }));
     S.board[code] = { code, name, source, stos, currentSto:0, memo:'' };
     chip?.classList.add('on');
@@ -1050,42 +1289,112 @@ function toggleProg(code, name, source) {
 // ════ 탭 렌더 ════
 function renderTabs() {
   const area = document.getElementById('tabArea');
-  const entries = Object.values(S.board).sort((a,b)=>{
-    const la = PEAK_PROGS.find(x=>x.c===a.code)?.lv||99;
-    const lb = PEAK_PROGS.find(x=>x.c===b.code)?.lv||99;
-    return la-lb;
-  });
+
+  // tabOrder 기반 정렬 (드래그로 변경된 순서 유지)
+  let entries = Object.values(S.board);
+  if (S.tabOrder.length) {
+    entries.sort((a,b) => {
+      const ia = S.tabOrder.indexOf(a.code);
+      const ib = S.tabOrder.indexOf(b.code);
+      if (ia===-1&&ib===-1) return 0;
+      if (ia===-1) return 1;
+      if (ib===-1) return -1;
+      return ia-ib;
+    });
+  } else {
+    entries.sort((a,b)=>{
+      const la=PEAK_PROGS.find(x=>x.c===a.code)?.lv||99;
+      const lb=PEAK_PROGS.find(x=>x.c===b.code)?.lv||99;
+      return la-lb;
+    });
+  }
 
   if (!entries.length) {
     area.innerHTML = `<div class="empty-board" style="margin-bottom:10px"><div class="ei">🎯</div><p>"프로그램 추가"를 눌러 선택해주세요</p></div>`;
     return;
   }
 
-  const tabs = entries.map(p => {
-    const allTrials = p.stos.flatMap(s=>[...s.trials,...s.blocks.flat()]);
+  const tabs = entries.map((p,idx) => {
+    const allTrials = p.stos.flatMap(s=>[...s.trials,...(s.blocks||[]).flat()]);
     const pct = allTrials.length ? Math.round(allTrials.filter(t=>t==='+').length/allTrials.length*100) : null;
-    const totalDone = p.stos.every(s=>(s.trials.filter(t=>t!==undefined&&t!==null).length + s.blocks.flat().length) >= 10);
     const mastery = pct!==null && pct>=80;
 
     let cls = 'prog-tab';
     if (p.code===S.current) cls+=' active';
     else if (mastery) cls+=' mastery';
-    else if (totalDone) cls+=' done-tab';
 
     const pctColor = pct===null?'var(--text3)':pct>=80?'var(--green)':pct>=50?'var(--accent)':'var(--red)';
     const curSto = p.stos[p.currentSto];
     const curTrials = [...(curSto?.trials||[])].filter(t=>t!==null&&t!==undefined);
 
-    return `<div class="${cls}" onclick="selectProg('${p.code}')">
+    return `<div class="${cls}" draggable="true"
+      data-code="${p.code}" data-idx="${idx}"
+      onclick="handleTabClick(event,'${p.code}')"
+      ondragstart="tabDragStart(event,'${p.code}')"
+      ondragover="tabDragOver(event)"
+      ondrop="tabDrop(event,'${p.code}')"
+      ondragleave="tabDragLeave(event)">
       <span class="pt-code">${p.code}</span>
       ${pct!==null
         ? `<span class="pt-pct" style="color:${pctColor}">${pct}%</span>`
         : `<span class="pt-cnt">${curTrials.length}/10</span>`
       }
+      <span class="tab-x" onclick="event.stopPropagation();removeTabByCode('${p.code}')">×</span>
     </div>`;
   }).join('');
 
   area.innerHTML = `<div class="tab-strip" style="margin-bottom:10px">${tabs}</div>`;
+}
+
+// 탭 클릭 vs X 구분
+function handleTabClick(e, code) {
+  if (e.target.classList.contains('tab-x')) return;
+  selectProg(code);
+}
+
+function removeTabByCode(code) {
+  delete S.board[code];
+  const chip = document.getElementById('ch-'+code);
+  if (chip) chip.classList.remove('on');
+  if (S.current===code) S.current=Object.keys(S.board)[0]||null;
+  S.tabOrder = S.tabOrder.filter(c=>c!==code);
+  renderTabs(); renderRecPanel();
+}
+
+// 드래그 앤 드롭
+let _dragCode = null;
+function tabDragStart(e, code) {
+  _dragCode = code;
+  e.target.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+}
+function tabDragOver(e) {
+  e.preventDefault();
+  e.currentTarget.classList.add('drag-over');
+}
+function tabDragLeave(e) {
+  e.currentTarget.classList.remove('drag-over');
+}
+function tabDrop(e, targetCode) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  if (!_dragCode || _dragCode===targetCode) { _dragCode=null; return; }
+  // 순서 재배치
+  const entries = Object.values(S.board);
+  let order = S.tabOrder.length ? [...S.tabOrder] : entries.map(p=>p.code);
+  // 없는 코드 추가
+  entries.forEach(p=>{ if(!order.includes(p.code)) order.push(p.code); });
+  const fromIdx = order.indexOf(_dragCode);
+  const toIdx = order.indexOf(targetCode);
+  if (fromIdx!==-1&&toIdx!==-1) {
+    order.splice(fromIdx,1);
+    order.splice(toIdx,0,_dragCode);
+  }
+  S.tabOrder = order;
+  _dragCode = null;
+  // 드래그 클래스 제거
+  document.querySelectorAll('.prog-tab.dragging').forEach(el=>el.classList.remove('dragging'));
+  renderTabs();
 }
 
 // ════ 탭 선택 ════
@@ -1094,6 +1403,51 @@ function selectProg(code) {
   S.current = code;
   renderTabs();
   renderRecPanel();
+}
+
+function addAdHocProgram() {
+  const code = prompt('임시 코드 입력 (예: AD-1)');
+  if (!code?.trim()) return;
+  const name = prompt('과제명 입력');
+  if (!name?.trim()) return;
+  const stoInput = prompt('STO 입력 (여러 개는 줄바꿈으로 구분)') || '기본 STO';
+  const stos = stoInput.split('\n').map(s=>s.trim()).filter(Boolean);
+  const tmpCode = code.trim();
+  S.board[tmpCode] = {
+    code: tmpCode, name: name.trim(), source: 'adhoc',
+    stos: stos.map(s=>({ name:s, trials:Array(10).fill(null), blocks:[], memo:'', taskMemo:'' })),
+    currentSto: 0, memo: ''
+  };
+  if (!S.current) S.current = tmpCode;
+  renderTabs(); renderRecPanel(); autoSave();
+  showToast(`"${name.trim()}" 즉석 추가됨 (이 세션에만 저장)`, 'ok');
+}
+
+function addStoField(value='') {
+  const wrap = document.getElementById('sto-fields');
+  const idx = wrap.children.length + 1;
+  const div = document.createElement('div');
+  div.className = 'fg';
+  div.innerHTML = `<label>단기 목표 ${idx}</label>
+    <div style="display:flex;gap:4px">
+      <input type="text" class="sto-dynamic" placeholder="단기 목표 입력..." value="${value.replace(/"/g,'&quot;')}" style="flex:1">
+      <button class="btn btn-ghost btn-sm" onclick="this.closest('.fg').remove();renumberStoFields()" style="padding:3px 8px">×</button>
+    </div>`;
+  wrap.appendChild(div);
+}
+
+function renumberStoFields() {
+  document.querySelectorAll('#sto-fields .fg label').forEach((lbl,i)=>{
+    lbl.textContent = `단기 목표 ${i+1}`;
+  });
+}
+
+function moveLTO(idx, dir) {
+  const arr = DB.customPrograms;
+  const newIdx = idx + dir;
+  if (newIdx < 0 || newIdx >= arr.length) return;
+  [arr[idx], arr[newIdx]] = [arr[newIdx], arr[idx]];
+  save(); saveAppDataToCloud(); renderProgListCustom();
 }
 
 function saveMemo() {
@@ -1108,9 +1462,36 @@ function saveMemo() {
   }
 }
 
+// ════ 칩 툴팁 ════
+function showChipTip(e, encoded) {
+  const tip = document.getElementById('chipTooltip');
+  if (!tip) return;
+  const content = decodeURIComponent(encoded);
+  const parts = content.split('||');
+  const codeLabel = parts[0]||'';
+  const nameLabel = parts[1]||'';
+  const stos = (parts[2]||'').split('|').filter(Boolean);
+  tip.innerHTML = `<div class="tt-code">${codeLabel} ${nameLabel}</div>
+    <div class="tt-stos">${stos.map(s=>`<div>${s}</div>`).join('')}</div>`;
+  tip.classList.remove('hidden');
+  const rect = e.target.getBoundingClientRect();
+  tip.style.position = 'fixed';
+  tip.style.left = Math.min(rect.left, window.innerWidth-230) + 'px';
+  tip.style.top = (rect.bottom + 6) + 'px';
+}
+function hideChipTip() {
+  document.getElementById('chipTooltip')?.classList.add('hidden');
+}
+
 function saveMemoInline(code, stoIdx, val) {
   const p = S.board[code]; if (!p) return;
   if (p.stos[stoIdx]) p.stos[stoIdx].memo = val;
+  autoSave();
+}
+
+function saveTaskMemo(code, stoIdx, val) {
+  const p = S.board[code]; if (!p) return;
+  if (p.stos[stoIdx]) p.stos[stoIdx].taskMemo = val;
   autoSave();
 }
 
@@ -1232,6 +1613,12 @@ function renderRecPanel() {
           <span style="font-family:var(--mono);font-size:12px;font-weight:700;color:${stoColor}">${stoPct!==null?stoPct+'%':''}</span>
         </div>
       </div>
+
+      <!-- 오류 수정 및 SD 관련 메모 -->
+      <textarea class="task-memo" rows="2"
+        placeholder="오류 수정 방법, SD 조건, 촉구 유형 등..."
+        onchange="saveTaskMemo('${p.code}',${curStoIdx},this.value)"
+      >${curSto.taskMemo||''}</textarea>
 
       <!-- + P - 버튼 -->
       <div class="score-btns">
@@ -1614,6 +2001,7 @@ function buildSessionData() {
     therapist: document.getElementById('sTherapist')?.value||'미입력',
     duration: document.getElementById('sDur')?.value||'40',
     condition: document.getElementById('sCond')?.value||'보통',
+    note: S.sessionNote || '',
     programs: progs.map(p=>({
       code:p.code, name:p.name, source:p.source,
       stos: p.stos.map(s=>({name:s.name, trials:[...s.trials], blocks:(s.blocks||[]).map(b=>[...b]), memo:s.memo||''})),
@@ -1709,7 +2097,14 @@ function renderProgListCustom() {
     wrap.innerHTML=`<div class="empty-board"><div class="ei">📋</div><p>아직 개별 과제가 없습니다<br>오른쪽 상단 "+ 개별 과제 추가"를 눌러 추가하세요</p></div>`;
     return;
   }
-  wrap.innerHTML = customs.map(lto => buildLTOCard(lto, 'custom')).join('');
+  wrap.innerHTML = customs.map((lto, i) => `
+    <div style="display:flex;align-items:flex-start;gap:4px;margin-bottom:4px">
+      <div style="display:flex;flex-direction:column;gap:2px;padding-top:4px">
+        <button class="btn btn-ghost btn-sm" style="padding:1px 6px;font-size:10px" onclick="moveLTO(${i},-1)" ${i===0?'disabled':''}>▲</button>
+        <button class="btn btn-ghost btn-sm" style="padding:1px 6px;font-size:10px" onclick="moveLTO(${i},1)" ${i===customs.length-1?'disabled':''}>▼</button>
+      </div>
+      <div style="flex:1">${buildLTOCard(lto, 'custom')}</div>
+    </div>`).join('');
 }
 
 function buildLTOCard(lto, source) {
@@ -1863,7 +2258,8 @@ function openAddLTO() {
   document.getElementById('lto-edit-id').value='';
   document.getElementById('lto-code').value='';
   document.getElementById('lto-name').value='';
-  ['sto-1','sto-2','sto-3'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('sto-fields').innerHTML =
+    '<div class="fg"><label>단기 목표 1 (STO)</label><input type="text" class="sto-dynamic" placeholder="단기 목표 입력..."></div>';
   document.getElementById('addLTOModal').classList.add('open');
 }
 
@@ -1876,8 +2272,11 @@ function openEditLTO(uid) {
   document.getElementById('lto-code').value=prog.c||'';
   document.getElementById('lto-name').value=prog.n||'';
   const stos = prog.stos||[];
-  ['sto-1','sto-2','sto-3'].forEach((id,i)=>{
-    document.getElementById(id).value=stos[i]||'';
+  document.getElementById('sto-fields').innerHTML =
+    '<div class="fg"><label>단기 목표 1 (STO)</label><input type="text" class="sto-dynamic" placeholder="단기 목표 입력..."></div>';
+  stos.forEach((s,i)=>{
+    if(i===0) document.querySelector('.sto-dynamic').value=s;
+    else addStoField(s);
   });
   document.getElementById('addLTOModal').classList.add('open');
 }
@@ -1887,7 +2286,8 @@ function saveLTO() {
   const code = document.getElementById('lto-code').value.trim();
   const name = document.getElementById('lto-name').value.trim();
   if (!code||!name) { showToast('코드와 목표명을 입력해주세요','err'); return; }
-  const stos = ['sto-1','sto-2','sto-3'].map(id=>document.getElementById(id).value.trim()).filter(Boolean);
+  const stos = [...document.querySelectorAll('#sto-fields .sto-dynamic')]
+    .map(el=>el.value.trim()).filter(Boolean);
   if (!stos.length) stos.push('기본 STO');
   if (!DB.customPrograms) DB.customPrograms=[];
   if (editId) {
@@ -2210,12 +2610,14 @@ function renderKids() {
       </div>
       <div style="font-size:11px;color:var(--text2);line-height:1.9">
         VB-MAPP ${c.vbmapp} · PEAK ${c.peak}<br>
-        총 ${n}회 세션 · 단가 ${(c.rate||0).toLocaleString()}원<br>
+        총 ${n}회 세션 · 단가 ${(c.rate||0).toLocaleString()}원 · ${c.sessionDur||'40'}분<br>
         <span style="color:var(--text3)">최근: ${last?last.date:'없음'}</span>
       </div>
       ${c.note?`<div style="margin-top:8px;font-size:11px;color:var(--text3);border-top:1px solid var(--border);padding-top:6px">${c.note}</div>`:''}
       <div style="margin-top:8px;display:flex;gap:6px">
         <button class="btn btn-primary btn-sm" style="flex:1;justify-content:center" onclick="quickSel('${c.id}')">세션 기록 →</button>
+        <button class="btn btn-ghost btn-sm" style="padding:3px 8px;font-size:10px" onclick="openEditChild('${c.id}')">✏ 수정</button>
+        <button class="btn btn-danger btn-sm" style="padding:3px 8px;font-size:10px" onclick="deleteChild('${c.id}','${c.name}')">🗑</button>
       </div>
     </div>`;
   }).join('');
@@ -2241,6 +2643,7 @@ function openEditChild(id) {
   document.getElementById('nc-v').value=c.vbmapp||'2';
   document.getElementById('nc-p').value=c.peak||'Generalization';
   document.getElementById('nc-r').value=c.rate||80000;
+  if(document.getElementById('nc-dur')) document.getElementById('nc-dur').value=c.sessionDur||'40';
   document.getElementById('nc-note').value=c.note||'';
   document.getElementById('childModal').classList.add('open');
 }
@@ -2255,6 +2658,7 @@ async function saveChild() {
     vbmapp:parseInt(document.getElementById('nc-v').value),
     peak:document.getElementById('nc-p').value,
     rate:parseInt(document.getElementById('nc-r').value)||80000,
+    sessionDur:document.getElementById('nc-dur')?.value||'40',
     note:document.getElementById('nc-note').value
   };
 
@@ -2288,6 +2692,17 @@ async function saveChild() {
   save();renderChildSel();renderKids();closeModal('childModal');
 }
 
+async function deleteChild(id, name) {
+  if (!confirm(`"${name}" 아동을 삭제할까요?\n세션 기록은 유지됩니다.`)) return;
+  DB.children = DB.children.filter(c=>c.id!==id);
+  if (IS_ONLINE) {
+    try { await supa.from('students').delete().eq('id',id); } catch(e){}
+  }
+  if (S.child?.id===id) { S.child=null; document.getElementById('childSel').value=''; }
+  save(); renderChildSel(); renderKids();
+  showToast(`${name} 삭제됨`,'ok');
+}
+
 function quickSel(id){document.getElementById('childSel').value=id;onChild(id);go('rec');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 
@@ -2300,14 +2715,242 @@ function doExport() {
 
 // ════ 페이지 전환 ════
 function go(page) {
-  ['rec','programs','graph','hist','kids'].forEach(p=>{
+  ['rec','programs','graph','hist','attend','kids'].forEach(p=>{
     document.getElementById('p-'+p)?.classList.toggle('hidden',p!==page);
     document.getElementById('n-'+p)?.classList.toggle('active',p===page);
   });
   S.page=page;
   if(page==='graph')renderG();
   if(page==='hist')renderHist();
-  if(page==='programs'){renderProgListPeak();}
+  if(page==='programs')renderProgListPeak();
+  if(page==='attend')initAttend();
+}
+
+// ════ 출결 관리 ════
+
+// 아동 코드 생성 (이름 없이 순번 코드)
+function childCode(idx) {
+  return '아동' + String.fromCharCode(65 + idx); // 아동A, 아동B...
+}
+
+function initAttend() {
+  const sel = document.getElementById('attendMonth');
+  if (!sel) return;
+  // 최근 6개월 옵션 생성
+  const now = new Date();
+  sel.innerHTML = '';
+  for (let i = 0; i < 6; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const val = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const label = `${d.getFullYear()}년 ${d.getMonth()+1}월`;
+    sel.innerHTML += `<option value="${val}"${i===0?' selected':''}>${label}</option>`;
+  }
+  renderAttend();
+}
+
+function renderAttend() {
+  const sel = document.getElementById('attendMonth');
+  if (!sel?.value) return;
+  const [year, month] = sel.value.split('-').map(Number);
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const wrap = document.getElementById('attendTable');
+
+  // 아동 목록
+  const kids = DB.children;
+  if (!kids.length) {
+    wrap.innerHTML = '<div style="color:var(--text3);padding:8px">등록된 아동이 없습니다</div>';
+    return;
+  }
+
+  // 날짜 헤더
+  const days = Array.from({length: daysInMonth}, (_,i) => i+1);
+  const dateHeaders = days.map(d => {
+    const dow = new Date(year, month-1, d).getDay();
+    const isWeekend = dow===0||dow===6;
+    const dowLabel = ['일','월','화','수','목','금','토'][dow];
+    return `<th style="min-width:32px;text-align:center;font-size:10px;color:${isWeekend?'var(--red)':'var(--text3)'};padding:4px 2px">${d}<br>${dowLabel}</th>`;
+  }).join('');
+
+  // 아동별 행
+  const rows = kids.map((kid, ki) => {
+    const code = childCode(ki);
+    const cells = days.map(d => {
+      const dateStr = `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const status = DB.attendance[dateStr]?.[kid.id] || '';
+      const dow = new Date(year, month-1, d).getDay();
+      const isWeekend = dow===0||dow===6;
+      let bg = '', symbol = '';
+      if (status==='출석') { bg='rgba(52,212,138,.2)'; symbol='●'; }
+      else if (status==='보강') { bg='rgba(245,166,35,.2)'; symbol='▲'; }
+      else if (status==='결석') { bg='rgba(240,86,86,.2)'; symbol='×'; }
+      else if (status==='취소') { bg='rgba(78,87,117,.2)'; symbol='－'; }
+      return `<td style="text-align:center;cursor:pointer;background:${bg};padding:4px 2px;font-size:11px;${isWeekend&&!status?'opacity:.4':''}"
+        onclick="toggleAttend('${kid.id}','${dateStr}')"
+        title="${dateStr} ${code} ${status||'미기록'}">${symbol}</td>`;
+    }).join('');
+
+    // 월 합계
+    const total = days.filter(d => {
+      const ds = `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      return DB.attendance[ds]?.[kid.id]==='출석'||DB.attendance[ds]?.[kid.id]==='보강';
+    }).length;
+
+    return `<tr>
+      <td style="padding:6px 10px;font-size:12px;font-weight:500;white-space:nowrap;position:sticky;left:0;background:var(--bg2);z-index:1">${code}</td>
+      ${cells}
+      <td style="padding:6px 8px;font-size:11px;font-family:var(--mono);color:var(--accent);text-align:center">${total}회</td>
+    </tr>`;
+  }).join('');
+
+  wrap.innerHTML = `<div style="overflow-x:auto">
+    <table style="border-collapse:collapse;width:100%;font-size:12px">
+      <thead>
+        <tr>
+          <th style="padding:6px 10px;text-align:left;font-size:10px;color:var(--text3);position:sticky;left:0;background:var(--bg2);z-index:2">아동</th>
+          ${dateHeaders}
+          <th style="padding:4px 8px;font-size:10px;color:var(--text3);text-align:center">합계</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+}
+
+function toggleAttend(kidId, dateStr) {
+  const cycle = ['', '출석', '보강', '결석', '취소'];
+  if (!DB.attendance[dateStr]) DB.attendance[dateStr] = {};
+  const cur = DB.attendance[dateStr][kidId] || '';
+  const next = cycle[(cycle.indexOf(cur) + 1) % cycle.length];
+  if (next) DB.attendance[dateStr][kidId] = next;
+  else delete DB.attendance[dateStr][kidId];
+  save();
+  renderAttend();
+}
+
+// ════ 엑셀 내보내기 ════
+function exportExcel() {
+  const sel = document.getElementById('attendMonth');
+  if (!sel?.value) { showToast('월을 선택해주세요','err'); return; }
+  const [year, month] = sel.value.split('-').map(Number);
+  const monthLabel = `${year}년 ${month}월`;
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const days = Array.from({length: daysInMonth}, (_,i) => i+1);
+  const kids = DB.children;
+
+  // 아동 코드 맵 (이름 없음)
+  const codeMap = {};
+  kids.forEach((k,i) => { codeMap[k.id] = childCode(i); });
+
+  // ── 시트1: 출결 기록 ──
+  const sheet1 = [
+    [`${monthLabel} 출결 기록`],
+    ['아동', ...days.map(d=>{
+      const dow=['일','월','화','수','목','금','토'][new Date(year,month-1,d).getDay()];
+      return `${d}(${dow})`;
+    }), '출석합계']
+  ];
+  kids.forEach((kid, ki) => {
+    const code = childCode(ki);
+    const row = [code];
+    let total = 0;
+    days.forEach(d => {
+      const ds = `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const st = DB.attendance[ds]?.[kid.id] || '';
+      row.push(st);
+      if (st==='출석'||st==='보강') total++;
+    });
+    row.push(total);
+    sheet1.push(row);
+  });
+
+  // ── 시트2: 세션별 수행 기록 ──
+  const sheet2 = [
+    [`${monthLabel} 세션 수행 기록`],
+    ['날짜','아동코드','LTO코드','LTO명','STO','정반응(+)','촉구반응(P)','오반응(-)','총시도','정반응률','메모']
+  ];
+
+  const allSess = Object.values(DB.sessionArchive).flat()
+    .filter(s => {
+      const d = s.date?.slice(0,7);
+      return d === `${year}-${String(month).padStart(2,'0')}`;
+    })
+    .sort((a,b) => a.date.localeCompare(b.date));
+
+  allSess.forEach(sess => {
+    const code = codeMap[sess.childId] || '아동?';
+    (sess.programs||[]).forEach(prog => {
+      (prog.stos||[]).forEach(sto => {
+        const trials = [...(sto.trials||[]),...(sto.blocks||[]).flat()].filter(t=>t);
+        if (!trials.length) return;
+        const plus = trials.filter(t=>t==='+').length;
+        const p = trials.filter(t=>t==='P').length;
+        const minus = trials.filter(t=>t==='-').length;
+        const pct = Math.round(plus/trials.length*100);
+        sheet2.push([
+          sess.date, code, prog.code, prog.name,
+          sto.name, plus, p, minus, trials.length, pct+'%',
+          sto.memo||''
+        ]);
+      });
+    });
+  });
+
+  // ── 시트3: LTO별 정반응률 추이 ──
+  const sheet3 = [
+    [`${monthLabel} LTO별 정반응률 요약`],
+    ['아동코드','LTO코드','LTO명','날짜','정반응률(%)','총시도수']
+  ];
+
+  const ltoMap = {}; // { kidId+code: {name, dates: {date: {plus,total}}} }
+  allSess.forEach(sess => {
+    const code = codeMap[sess.childId]||'아동?';
+    (sess.programs||[]).forEach(prog => {
+      const key = code+'|'+prog.code;
+      if (!ltoMap[key]) ltoMap[key]={code, ltoCode:prog.code, name:prog.name, dates:{}};
+      const trials = (prog.stos||[]).flatMap(s=>[...(s.trials||[]),...(s.blocks||[]).flat()]).filter(t=>t);
+      if (!trials.length) return;
+      ltoMap[key].dates[sess.date] = {
+        plus: trials.filter(t=>t==='+').length,
+        total: trials.length
+      };
+    });
+  });
+
+  Object.values(ltoMap).forEach(entry => {
+    Object.entries(entry.dates).sort().forEach(([date, d]) => {
+      sheet3.push([
+        entry.code, entry.ltoCode, entry.name, date,
+        Math.round(d.plus/d.total*100), d.total
+      ]);
+    });
+  });
+
+  // ── XLSX 생성 (SheetJS CDN 없이 CSV+ZIP 대신 간단한 HTML테이블→다운로드) ──
+  // SheetJS를 동적 로드
+  const script = document.createElement('script');
+  script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+  script.onload = () => {
+    const wb = XLSX.utils.book_new();
+
+    const addSheet = (data, name) => {
+      const ws = XLSX.utils.aoa_to_sheet(data);
+      // 컬럼 너비 자동
+      const colWidths = data[1]?.map((_,ci) => ({
+        wch: Math.max(...data.map(r => String(r[ci]||'').length), 4)
+      })) || [];
+      ws['!cols'] = colWidths;
+      XLSX.utils.book_append_sheet(wb, ws, name);
+    };
+
+    addSheet(sheet1, '출결기록');
+    addSheet(sheet2, '수행기록');
+    addSheet(sheet3, 'LTO요약');
+
+    XLSX.writeFile(wb, `ABA_${year}년${month}월_기록.xlsx`);
+    showToast('엑셀 파일 다운로드 완료 📊','ok');
+  };
+  script.onerror = () => showToast('엑셀 라이브러리 로드 실패','err');
+  document.head.appendChild(script);
 }
 
 // ════ 토스트 ════
