@@ -251,6 +251,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <div class="nav-item" onclick="go('graph')" id="n-graph">📈 진행 그래프</div>
     <div class="nav-item" onclick="go('hist')" id="n-hist">📋 히스토리</div>
     <div class="nav-item" onclick="go('attend')" id="n-attend">📅 출결 관리</div>
+    <div class="nav-item" onclick="go('calendar')" id="n-calendar">🗓 수업 캘린더</div>
     <div class="nav-lbl" style="margin-top:8px">관리</div>
     <div class="nav-item" onclick="go('kids')" id="n-kids">👦 아동 관리</div>
     <div class="nav-item" onclick="doExport()">💾 내보내기</div>
@@ -280,7 +281,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   <div class="content">
     <div class="sess-head">
       <input type="date" id="sDate" onchange="onDateChange(this.value)">
-      <input type="text" id="sTherapist" placeholder="치료사" style="width:90px">
+      <input type="text" id="sTherapist" placeholder="치료사" value="LEJ" style="width:90px">
       <select id="sDur">
         <option value="40">40분</option>
         <option value="50">50분</option>
@@ -439,6 +440,22 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   </div>
 </div>
 
+<!-- ══ 수업 캘린더 ══ -->
+<div id="p-calendar" class="hidden fade-in">
+  <div class="topbar">
+    <div class="topbar-title">수업 캘린더</div>
+    <div style="display:flex;gap:6px;align-items:center">
+      <button class="btn btn-ghost btn-sm" onclick="calPrev()">◀</button>
+      <span id="calTitle" style="font-size:13px;font-weight:500;min-width:100px;text-align:center"></span>
+      <button class="btn btn-ghost btn-sm" onclick="calNext()">▶</button>
+    </div>
+  </div>
+  <div class="content">
+    <div id="calGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px"></div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;font-size:11px" id="calLegend"></div>
+  </div>
+</div>
+
 <!-- ══ 아동 관리 ══ -->
 <div id="p-kids" class="hidden fade-in">
   <div class="topbar"><div class="topbar-title">아동 관리</div><button class="btn btn-primary btn-sm" onclick="openAddChild()">+ 추가</button></div>
@@ -479,6 +496,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
         <option value="80">80분</option>
       </select>
     </div>
+    <div class="fg"><label>수업 요일</label>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px" id="nc-days">
+        ${['월','화','수','목','금','토','일'].map(d=>`<label style="display:flex;align-items:center;gap:3px;font-size:12px;cursor:pointer"><input type="checkbox" value="${d}" style="accent-color:var(--accent)"> ${d}</label>`).join('')}
+      </div>
+    </div>
+    <div class="fg"><label>수업 시간</label><input type="text" id="nc-time" placeholder="예: 14:00"></div>
     <div class="fg"><label>메모</label><textarea id="nc-note" rows="2" placeholder="특이사항, 주의사항..."></textarea></div>
     <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:14px">
       <button class="btn btn-ghost btn-sm" onclick="closeModal('childModal')">취소</button>
@@ -764,172 +787,259 @@ async function loadCustomStosFromCloud(studentId) {
 const VBMAPP_AREAS = [
   {
     id:'mand', name:'맨드(Mand)', short:'맨드',
-    levels: {
-      'Level1': [
-        {c:'MND-1-1', n:'촉구 받아 2가지 요구', stos:['선호 강화물 있을 때 촉구로 2가지 맨드 3/5','새로운 맥락 일반화 4/5']},
-        {c:'MND-1-2', n:'언어적 촉구 없이 4가지 요구', stos:['언어 촉구 없이 4가지 맨드 3/5','다양한 상황 4/5']},
-        {c:'MND-1-3', n:'일반화: 2명에게 각 5가지 요구', stos:['1명에게 5가지 맨드 3/5','2명 이상에게 일반화 4/5']},
-        {c:'MND-1-4', n:'자발적 맨드: 자극 없이 5가지', stos:['강화물 없이 자발적 3가지 맨드 3/5','5가지 자발적 맨드 4/5']},
-        {c:'MND-1-5', n:'습득된 10가지 자발적 요구', stos:['습득 맨드 중 5가지 자발적 3/5','10가지 자발적 맨드 4/5']},
-      ],
-      'Level2': [
-        {c:'MND-2-1', n:'보이지 않는 아이템 2가지 요구', stos:['눈앞에 없는 선호 사물 맨드 2가지 3/5','5가지로 확장 4/5']},
-        {c:'MND-2-2', n:'5가지 동사(액션) 요구', stos:['밀어줘/열어줘 등 동작 맨드 3가지 3/5','5가지 동사 맨드 4/5']},
-        {c:'MND-2-3', n:'2단어 조합 10가지 요구', stos:['2어절 맨드 5가지 3/5','10가지 2단어 맨드 4/5']},
-        {c:'MND-2-4', n:'20개 이상 자발적 요구', stos:['다양한 상황 자발적 10가지 3/5','20가지 이상 4/5']},
-        {c:'MND-2-5', n:'짧은 문장으로 하루 10번 요구', stos:['짧은 문장 맨드 5회/일 3/5','10회 이상/일 4/5']},
-      ],
-      'Level3': [
-        {c:'MND-3-1', n:'5가지 질문으로 정보 요구', stos:['누구/무엇 질문 맨드 3가지 3/5','5가지 질문 맨드 4/5']},
-        {c:'MND-3-2', n:'전치사 3가지 포함 요구', stos:['위에/아래에 포함 맨드 2가지 3/5','전치사 3가지 포함 4/5']},
-        {c:'MND-3-3', n:'형용사/부사 3가지 포함 요구', stos:['큰 거/작은 거 등 형용사 포함 3/5','3가지 형용사 맨드 4/5']},
-        {c:'MND-3-4', n:'5단계 이상 과업에서 도움 요구', stos:['복잡한 과업 중 도움 요청 3/5','5단계 이상 과업 4/5']},
-        {c:'MND-3-5', n:'미래 사건/정중한 거절 요구', stos:['미래 계획 관련 맨드 3/5','정중한 거절 표현 4/5']},
-      ]
-    }
+    progs:[
+    {c:'MND-1',n:'신체촉구 없이 2개 단어·수화·그림 맨드',lv:1},
+    {c:'MND-2',n:'4가지 맨드 표현',lv:2},
+    {c:'MND-3',n:'6환경 일반화 맨드',lv:3},
+    {c:'MND-4',n:'언어촉구 없이 5가지 맨드',lv:4},
+    {c:'MND-5',n:'10가지 맨드 표현',lv:5},
+    {c:'MND-6',n:'촉구없이 현장없는 20가지 선호사물',lv:6},
+    {c:'MND-7',n:'5가지 동작 맨드',lv:7},
+    {c:'MND-8',n:'2단어 이상 5가지 맨드',lv:8},
+    {c:'MND-9',n:'15가지 다양한 맨드',lv:9},
+    {c:'MND-10',n:'훈련 없이 10가지 새 맨드',lv:10},
+    {c:'MND-11',n:'의문사로 언어 정보 맨드 5회',lv:11},
+    {c:'MND-12',n:'예의 바른 거절 맨드',lv:12},
+    {c:'MND-13',n:'형용사·조사·부사 포함 맨드',lv:13},
+    {c:'MND-14',n:'과제수행 지시·설명 5회',lv:14},
+    {c:'MND-15',n:'인트라버벌 행동 집중 맨드',lv:15},
+    ]
   },
   {
     id:'tact', name:'택트(Tact)', short:'택트',
-    levels: {
-      'Level1': [
-        {c:'TCT-1-1', n:'친숙한 사물 2개 명명', stos:['친숙한 사물 이름 2가지 3/5','새로운 맥락 4/5']},
-        {c:'TCT-1-2', n:'친숙한 사물 5개 명명', stos:['사물 이름 5가지 3/5','그림 포함 일반화 4/5']},
-        {c:'TCT-1-3', n:'사물/사람/동물 10개 명명', stos:['일반적 사물 10가지 택트 3/5','다양한 배열 4/5']},
-        {c:'TCT-1-4', n:'사물/그림 25개 명명', stos:['사물 25가지 택트 3/5','그림-실물 일반화 4/5']},
-        {c:'TCT-1-5', n:'사물/그림 50개 명명', stos:['사물 50가지 택트 3/5','새로운 사물 전이 4/5']},
-      ],
-      'Level2': [
-        {c:'TCT-2-1', n:'명사/동사 포함 25개 명명', stos:['명사+동사 조합 15가지 3/5','25가지 4/5']},
-        {c:'TCT-2-2', n:'명사/동사 포함 50개 명명', stos:['명사+동사 25가지 3/5','50가지 4/5']},
-        {c:'TCT-2-3', n:'진행 중인 동작 10개 명명', stos:['"먹고 있어요" 등 동작 5가지 3/5','10가지 진행형 4/5']},
-        {c:'TCT-2-4', n:'LRFFC 관련 사물 25개 명명', stos:['기능/특징/범주 관련 사물 15가지 3/5','25가지 4/5']},
-        {c:'TCT-2-5', n:'2단어 조합 50개 명명', stos:['명사+동사 조합 25가지 3/5','50가지 4/5']},
-      ],
-      'Level3': [
-        {c:'TCT-3-1', n:'형용사(색깔/모양 등) 10개 명명', stos:['색깔 5가지 택트 3/5','모양 포함 10가지 4/5']},
-        {c:'TCT-3-2', n:'전치사 4개 명명', stos:['위/아래 2가지 택트 3/5','안/옆 포함 4가지 4/5']},
-        {c:'TCT-3-3', n:'대명사 4개 명명', stos:['나/너 2가지 택트 3/5','4가지 대명사 4/5']},
-        {c:'TCT-3-4', n:'특징/범주 2개 이상 문장으로 설명', stos:['1가지 특징 포함 설명 3/5','2가지 이상 포함 4/5']},
-        {c:'TCT-3-5', n:'복잡한 장면 4단어 이상 문장 설명', stos:['장면 2단어 설명 3/5','4단어 이상 문장 4/5']},
-      ]
-    }
+    progs:[
+    {c:'TCT-1',n:'에코·모방촉구로 2개 택트',lv:1},
+    {c:'TCT-2',n:'촉구 없이 4개 택트',lv:2},
+    {c:'TCT-3',n:'6개 비선호 대상물 택트',lv:3},
+    {c:'TCT-4',n:'2가지 자발적 택트',lv:4},
+    {c:'TCT-5',n:'10개 대상물 택트',lv:5},
+    {c:'TCT-6',n:'25개 대상물 택트',lv:6},
+    {c:'TCT-7',n:'50개 일반화 택트',lv:7},
+    {c:'TCT-8',n:'10개 동작 택트',lv:8},
+    {c:'TCT-9',n:'명사-동사 조합 택트',lv:9},
+    {c:'TCT-10',n:'200개 택트 어휘',lv:10},
+    {c:'TCT-11',n:'색·모양·기능 15회 택트',lv:11},
+    {c:'TCT-12',n:'조사·대명사 택트',lv:12},
+    {c:'TCT-13',n:'형용사·부사 택트',lv:13},
+    {c:'TCT-14',n:'4단어 이상 완전 문장 20회',lv:14},
+    {c:'TCT-15',n:'1,000단어 택트 어휘',lv:15},
+    ]
   },
   {
     id:'lr', name:'청자반응(LR)', short:'청자반응',
-    levels: {
-      'Level1': [
-        {c:'LR-1-1', n:'이름에 반응(고개 돌리기)', stos:['이름 부를 때 고개 돌리기 3/5','다양한 화자 일반화 4/5']},
-        {c:'LR-1-2', n:'"와" 또는 "앉아" 지시 반응', stos:['"와/앉아" 지시 수행 3/5','새로운 맥락 4/5']},
-        {c:'LR-1-3', n:'사물/그림 10가지 변별', stos:['배열에서 지시 사물 10가지 3/5','그림 포함 일반화 4/5']},
-        {c:'LR-1-4', n:'사물/그림 20가지 변별', stos:['지시 사물 20가지 변별 3/5','새로운 사물 전이 4/5']},
-        {c:'LR-1-5', n:'사물/그림 40가지 변별', stos:['지시 사물 40가지 변별 3/5','다양한 배열 4/5']},
-      ],
-      'Level2': [
-        {c:'LR-2-1', n:'2단계 지시 수행', stos:['2단계 지시 10가지 3/5','새로운 2단계 지시 4/5']},
-        {c:'LR-2-2', n:'동작 지시 20개 수행', stos:['동작 지시 10가지 3/5','20가지 4/5']},
-        {c:'LR-2-3', n:'사물/그림 100개 변별', stos:['지시 사물 50가지 3/5','100가지 4/5']},
-        {c:'LR-2-4', n:'사물/그림 250개 변별', stos:['지시 사물 150가지 3/5','250가지 4/5']},
-        {c:'LR-2-5', n:'LRFFC 설명 듣고 250개 중 찾기', stos:['기능/특징 설명으로 100가지 3/5','250가지 4/5']},
-      ],
-      'Level3': [
-        {c:'LR-3-1', n:'형용사/부사 포함 지시 수행', stos:['"작은 공 줘" 등 5가지 3/5','10가지 형용사 포함 4/5']},
-        {c:'LR-3-2', n:'전치사 3개 포함 지시 수행', stos:['"의자 밑에 넣어" 등 3가지 3/5','새로운 전치사 포함 4/5']},
-        {c:'LR-3-3', n:'대명사 3개 구별 수행', stos:['"내 것/네 것" 2가지 3/5','3가지 대명사 구별 4/5']},
-        {c:'LR-3-4', n:'3단계 지시 수행', stos:['3단계 지시 5가지 3/5','새로운 3단계 지시 4/5']},
-        {c:'LR-3-5', n:'대화 듣고 질문에 반응', stos:['짧은 대화 후 질문 반응 3/5','복잡한 대화 상황 4/5']},
-      ]
-    }
+    progs:[
+    {c:'LR-1',n:'화자 말소리 집중',lv:1},
+    {c:'LR-2',n:'자기이름 반응',lv:2},
+    {c:'LR-3',n:'2배열 중 5개 강화제 선택',lv:3},
+    {c:'LR-4',n:'시각촉구 없이 4가지 동작',lv:4},
+    {c:'LR-5',n:'4배열 중 20개 수용변별',lv:5},
+    {c:'LR-6',n:'6배열 40개 수용변별',lv:6},
+    {c:'LR-7',n:'8배열 50개 일반화',lv:7},
+    {c:'LR-8',n:'10개 구체적 신체 동작',lv:8},
+    {c:'LR-9',n:'명사-동사 2요소 50개',lv:9},
+    {c:'LR-10',n:'이름 제시로 250개 수용변별',lv:10},
+    {c:'LR-11',n:'색·모양 4가지씩 청자반응',lv:11},
+    {c:'LR-12',n:'6조사+4대명사 두 지시항',lv:12},
+    {c:'LR-13',n:'비교급 형용사·부사 청자반응',lv:13},
+    {c:'LR-14',n:'3단계 연속 지시 10회',lv:14},
+    {c:'LR-15',n:'청자어휘 1,200단어',lv:15},
+    ]
   },
   {
     id:'vpmts', name:'시지각(VP-MTS)', short:'시지각',
-    levels: {
-      'Level1': [
-        {c:'VP-1-1', n:'움직이는 물체 2초 응시 5회', stos:['움직이는 물체 시선 추적 2초 3/5','다양한 자극 4/5']},
-        {c:'VP-1-2', n:'짚어주는 물체/그림 2초 응시 10회', stos:['지시 물체 응시 2초 5회 3/5','10회 4/5']},
-        {c:'VP-1-3', n:'똑같은 물체 5개 짝맞추기', stos:['동일 물체 매칭 3가지 3/5','5가지 4/5']},
-        {c:'VP-1-4', n:'물체/그림 10개 짝맞추기', stos:['동일 물체/그림 매칭 7가지 3/5','10가지 4/5']},
-        {c:'VP-1-5', n:'사물/그림 15개 짝맞추기', stos:['동일 사물/그림 12가지 3/5','15가지 4/5']},
-      ],
-      'Level2': [
-        {c:'VP-2-1', n:'사물/그림 25개 짝맞추기', stos:['동일 사물/그림 20가지 3/5','25가지 4/5']},
-        {c:'VP-2-2', n:'사물/그림 100개 짝맞추기', stos:['50가지 매칭 3/5','100가지 4/5']},
-        {c:'VP-2-3', n:'비전형적 예시 25개 짝맞추기', stos:['비슷한 사물 15가지 3/5','25가지 4/5']},
-        {c:'VP-2-4', n:'배경 섞인 그림 속 사물 25개 매칭', stos:['배경 있는 그림 15가지 3/5','25가지 4/5']},
-        {c:'VP-2-5', n:'복잡한 패턴/도형 10가지 완성', stos:['단순 패턴 5가지 3/5','복잡한 패턴 10가지 4/5']},
-      ],
-      'Level3': [
-        {c:'VP-3-1', n:'3가지 속성(색/모양/크기) 짝맞추기', stos:['2가지 속성 매칭 3/5','3가지 속성 4/5']},
-        {c:'VP-3-2', n:'복잡한 블록 패턴 20개 모방', stos:['블록 패턴 10개 모방 3/5','20개 4/5']},
-        {c:'VP-3-3', n:'그림 속 누락된 부분 찾기', stos:['누락 부분 5가지 찾기 3/5','10가지 4/5']},
-        {c:'VP-3-4', n:'8조각 이상 퍼즐 맞추기', stos:['4조각 퍼즐 3/5','8조각 이상 4/5']},
-        {c:'VP-3-5', n:'복잡한 그림/글자 차이점 10개 구별', stos:['차이점 5개 구별 3/5','10개 4/5']},
-      ]
-    }
+    progs:[
+    {c:'VP-1',n:'움직이는 자극 시각추적',lv:1},
+    {c:'VP-2',n:'핀셋잡기 (관찰)',lv:2},
+    {c:'VP-3',n:'30초 시각집중',lv:3},
+    {c:'VP-4',n:'3가지 활동 중 2가지',lv:4},
+    {c:'VP-5',n:'10개 대상물 매칭',lv:5},
+    {c:'VP-6',n:'6배열 25개 매칭',lv:6},
+    {c:'VP-7',n:'색·모양 다양한 모델 매칭',lv:7},
+    {c:'VP-8',n:'8배열 25개 매칭',lv:8},
+    {c:'VP-9',n:'연관 자극 매칭',lv:9},
+    {c:'VP-10',n:'실물↔그림 25개',lv:10},
+    {c:'VP-11',n:'미술·공작 샘플 자발 매칭',lv:11},
+    {c:'VP-12',n:'10배열 일반화된 비일치 매칭',lv:12},
+    {c:'VP-13',n:'8가지 조각 블록설계',lv:13},
+    {c:'VP-14',n:'5범주 분류',lv:14},
+    {c:'VP-15',n:'3요소 20가지 패턴·연속배열',lv:15},
+    ]
+  },
+  {
+    id:'play', name:'독립놀이', short:'독립놀이',
+    progs:[
+    {c:'PLAY-1',n:'1분 대상물 조작·탐색',lv:1},
+    {c:'PLAY-2',n:'5가지 대상물 독자 놀이',lv:2},
+    {c:'PLAY-3',n:'새 환경 탐색·일반화',lv:3},
+    {c:'PLAY-4',n:'신체활동놀이 2분',lv:4},
+    {c:'PLAY-5',n:'원인결과 놀이',lv:5},
+    {c:'PLAY-6',n:'퍼즐·부품 찾기',lv:6},
+    {c:'PLAY-7',n:'5가지 기능에 맞게 사용',lv:7},
+    {c:'PLAY-8',n:'일상용품 창조적 활용 2회',lv:8},
+    {c:'PLAY-9',n:'5분 독립놀이',lv:9},
+    {c:'PLAY-10',n:'5가지 세트 장난감 조립',lv:10},
+    {c:'PLAY-11',n:'5가지 가상놀이 자발',lv:11},
+    {c:'PLAY-12',n:'목적 지향 대근육 2가지',lv:12},
+    {c:'PLAY-13',n:'미술·공작 5분 독립',lv:13},
+    {c:'PLAY-14',n:'촉구 없이 10분 놀이',lv:14},
+    {c:'PLAY-15',n:'학령전기 활동 5분 독립',lv:15},
+    ]
+  },
+  {
+    id:'social', name:'사회성', short:'사회성',
+    progs:[
+    {c:'SOC-1',n:'맨드 유형 눈맞춤 5회',lv:1},
+    {c:'SOC-2',n:'안기·신체활동 표현',lv:2},
+    {c:'SOC-3',n:'또래 자발적 눈맞춤',lv:3},
+    {c:'SOC-4',n:'또래 근처 2분 평행놀이',lv:4},
+    {c:'SOC-5',n:'또래 신체행동 모방',lv:5},
+    {c:'SOC-6',n:'또래 신체 상호작용 2회',lv:6},
+    {c:'SOC-7',n:'또래에게 5회 맨드',lv:7},
+    {c:'SOC-8',n:'3분 사회적 놀이 지속',lv:8},
+    {c:'SOC-9',n:'또래 맨드에 5회 반응',lv:9},
+    {c:'SOC-10',n:'또래 참여 맨드 2회',lv:10},
+    {c:'SOC-11',n:'또래에게 5회 협력 맨드',lv:11},
+    {c:'SOC-12',n:'또래에게 의문사 맨드 5회',lv:12},
+    {c:'SOC-13',n:'또래 5가지 질문에 인트라버벌',lv:13},
+    {c:'SOC-14',n:'5분 사회적 가상놀이',lv:14},
+    {c:'SOC-15',n:'주제별 4회 교차 언어 대화',lv:15},
+    ]
   },
   {
     id:'mi', name:'동작모방(MI)', short:'동작모방',
-    levels: {
-      'Level1': [
-        {c:'MI-1-1', n:'대근육 모방 2개 (예: 박수)', stos:['박수 등 대근육 모방 1가지 3/5','2가지 4/5']},
-        {c:'MI-1-2', n:'대근육 모방 5개', stos:['대근육 모방 3가지 3/5','5가지 4/5']},
-        {c:'MI-1-3', n:'소도구 사용 모방 5개', stos:['컵 들기 등 소도구 3가지 3/5','5가지 4/5']},
-        {c:'MI-1-4', n:'소도구 사용 모방 10개', stos:['소도구 포함 7가지 3/5','10가지 4/5']},
-        {c:'MI-1-5', n:'미세근육/안면 모방 10개', stos:['혀 내밀기 등 5가지 3/5','미세근육 10가지 4/5']},
-      ],
-      'Level2': [
-        {c:'MI-2-1', n:'즉각적으로 20개 동작 모방', stos:['즉각 모방 10가지 3/5','20가지 4/5']},
-        {c:'MI-2-2', n:'2단계 연속 동작 모방', stos:['빗 들고 머리 빗기 등 3가지 3/5','5가지 2단계 4/5']},
-        {c:'MI-2-3', n:'구두 지시로 동작 유도', stos:['구두 지시 동작 5가지 3/5','새로운 동작 전이 4/5']},
-        {c:'MI-2-4', n:'연속적인 미세근육 모방 5개', stos:['미세근육 연속 3가지 3/5','5가지 4/5']},
-        {c:'MI-2-5', n:'새로운 행동 즉시 모방', stos:['새 동작 즉각 모방 3/5','다양한 상황 일반화 4/5']},
-      ]
-    }
+    progs:[
+    {c:'MI-1',n:'언어촉구+모델로 2개 대근육',lv:1},
+    {c:'MI-2',n:'4개 대근육 모방',lv:2},
+    {c:'MI-3',n:'8개 동작 모방',lv:3},
+    {c:'MI-4',n:'5상황 자발적 신체모방',lv:4},
+    {c:'MI-5',n:'20개 동작 모방',lv:5},
+    {c:'MI-6',n:'3배열 10개 동작 모방',lv:6},
+    {c:'MI-7',n:'20가지 소근육 모방',lv:7},
+    {c:'MI-8',n:'3요소 10가지 연속 동작',lv:8},
+    {c:'MI-9',n:'5가지 기능적 대·소근육',lv:9},
+    {c:'MI-10',n:'일반화된 모방 레퍼토리',lv:10},
+    ]
   },
   {
-    id:'iv', name:'인트라버벌(IV)', short:'인트라버벌',
-    levels: {
-      'Level2': [
-        {c:'IV-2-1', n:'빈칸 채우기 10개 (노래/문장)', stos:['익숙한 노래 빈칸 5가지 3/5','문장 포함 10가지 4/5']},
-        {c:'IV-2-2', n:'자신의 이름/나이 답하기', stos:['"이름이 뭐야?" 자기 이름 3/5','나이 포함 기본 정보 4/5']},
-        {c:'IV-2-3', n:'동물 소리/사물 특징 질문 25개', stos:['동물 소리 질문 10가지 3/5','25가지 4/5']},
-        {c:'IV-2-4', n:'기능 질문 25개 ("무엇으로 써?")', stos:['기능 질문 10가지 3/5','25가지 4/5']},
-        {c:'IV-2-5', n:'"누가/어디에" 질문 25개', stos:['"누가" 질문 10가지 3/5','"어디에" 포함 25가지 4/5']},
-      ],
-      'Level3': [
-        {c:'IV-3-1', n:'과거/미래 사건 25개 답하기', stos:['과거 사건 10가지 3/5','미래 포함 25가지 4/5']},
-        {c:'IV-3-2', n:'"왜" 질문 10개 답하기', stos:['"왜" 질문 5가지 3/5','10가지 4/5']},
-        {c:'IV-3-3', n:'3개 이상 질문 포함 대화 이어가기', stos:['2개 질문 대화 3/5','3개 이상 대화 4/5']},
-        {c:'IV-3-4', n:'주제에 대해 4문장 이상 말하기', stos:['주제 관련 2문장 3/5','4문장 이상 4/5']},
-        {c:'IV-3-5', n:'상반되는 개념 설명하기', stos:['낮/밤 차이 설명 3/5','다양한 반대 개념 4/5']},
-      ]
-    }
+    id:'read', name:'읽기', short:'읽기',
+    progs:[
+    {c:'READ-11',n:'책 읽기 75% 집중',lv:11},
+    {c:'READ-12',n:'알파벳 10가지 청자변별',lv:12},
+    {c:'READ-13',n:'10가지 알파벳 택트',lv:13},
+    {c:'READ-14',n:'자기 이름 읽기',lv:14},
+    {c:'READ-15',n:'단어↔그림 5개 양방향 매칭',lv:15},
+    ]
+  },
+  {
+    id:'echo', name:'에코익', short:'에코익',
+    progs:[
+    {c:'ECHO-1',n:'EESA 2점',lv:1},
+    {c:'ECHO-2',n:'EESA 5점',lv:2},
+    {c:'ECHO-3',n:'EESA 10점',lv:3},
+    {c:'ECHO-4',n:'EESA 15점',lv:4},
+    {c:'ECHO-5',n:'EESA 25점',lv:5},
+    {c:'ECHO-6',n:'EESA 50점(그룹2 20점)',lv:6},
+    {c:'ECHO-7',n:'EESA 60점',lv:7},
+    {c:'ECHO-8',n:'EESA 70점',lv:8},
+    {c:'ECHO-9',n:'EESA 80점',lv:9},
+    {c:'ECHO-10',n:'EESA 90점(그룹4~5 10점)',lv:10},
+    ]
+  },
+  {
+    id:'write', name:'쓰기', short:'쓰기',
+    progs:[
+    {c:'WRT-11',n:'5가지 쓰기 동작 모방',lv:11},
+    {c:'WRT-12',n:'5가지 도형 독자 그리기',lv:12},
+    {c:'WRT-13',n:'알파벳·숫자 보고 쓰기',lv:13},
+    {c:'WRT-14',n:'자기 이름 독자 쓰기',lv:14},
+    {c:'WRT-15',n:'한글 자음 19+모음 21 쓰기',lv:15},
+    ]
+  },
+  {
+    id:'vocal', name:'자발적 발성', short:'자발적발성',
+    progs:[
+    {c:'VOC-1',n:'1시간 5개 음',lv:1},
+    {c:'VOC-2',n:'1시간 10개 음(5가지 다양)',lv:2},
+    {c:'VOC-3',n:'1시간 25개 음(10가지 억양)',lv:3},
+    {c:'VOC-4',n:'5가지 단어 발음',lv:4},
+    {c:'VOC-5',n:'15가지 단어·구절 자발 발화',lv:5},
+    ]
   },
   {
     id:'lrffc', name:'LRFFC', short:'LRFFC',
-    levels: {
-      'Level2': [
-        {c:'LRFFC-2-1', n:'기능 관련 사물 5개 찾기', stos:['먹는 것 등 기능 단서 3가지 3/5','5가지 4/5']},
-        {c:'LRFFC-2-2', n:'특징 관련 사물 10개 찾기', stos:['빨간 것 등 특징 단서 5가지 3/5','10가지 4/5']},
-        {c:'LRFFC-2-3', n:'범주 관련 사물 10개 찾기', stos:['동물 등 범주 단서 5가지 3/5','10가지 4/5']},
-        {c:'LRFFC-2-4', n:'기능/특징/범주 2개 혼합 지시', stos:['2가지 혼합 단서 5가지 3/5','10가지 4/5']},
-        {c:'LRFFC-2-5', n:'기능/특징/범주 3개 혼합 지시', stos:['3가지 혼합 단서 5가지 3/5','10가지 4/5']},
-      ],
-      'Level3': [
-        {c:'LRFFC-3-1', n:'형용사 포함 LRFFC 지시 수행', stos:['형용사 포함 5가지 3/5','10가지 4/5']},
-        {c:'LRFFC-3-2', n:'"아닌 것" 배제하여 찾기', stos:['배제 조건 5가지 3/5','10가지 4/5']},
-        {c:'LRFFC-3-3', n:'3단계 설명 듣고 사물 찾기', stos:['3단계 설명 5가지 3/5','10가지 4/5']},
-        {c:'LRFFC-3-4', n:'복잡한 장면에서 조건 맞는 사물 5개', stos:['장면 속 LRFFC 3가지 3/5','5가지 4/5']},
-        {c:'LRFFC-3-5', n:'추상적 특징(직업/계절 등) 변별', stos:['직업 관련 변별 3/5','계절 포함 추상 특징 4/5']},
-      ]
-    }
-  }
+    progs:[
+    {c:'LRFFC-6',n:'문장완성 5가지 음식·음료',lv:6},
+    {c:'LRFFC-7',n:'25가지 LRFFC 청자반응',lv:7},
+    {c:'LRFFC-8',n:'누구·어디·무엇 유형 25개',lv:8},
+    {c:'LRFFC-9',n:'3가지 지시로 25개',lv:9},
+    {c:'LRFFC-10',n:'LRFFC 50% 자발 택트',lv:10},
+    {c:'LRFFC-11',n:'유사 자극 포함 10배열 25개',lv:11},
+    {c:'LRFFC-12',n:'특성·기능·부류 2요소 25개',lv:12},
+    {c:'LRFFC-13',n:'3언어 요소 의문사 25개',lv:13},
+    {c:'LRFFC-14',n:'주제별 4가지 순환 25개',lv:14},
+    {c:'LRFFC-15',n:'LRFFC 청자반응 1,000개',lv:15},
+    ]
+  },
+  {
+    id:'iv', name:'인트라버벌(IV)', short:'인트라버벌',
+    progs:[
+    {c:'IV-6',n:'문장완성 10가지 구절',lv:6},
+    {c:'IV-7',n:'자기 이름 말하기',lv:7},
+    {c:'IV-8',n:'25가지 문장완성',lv:8},
+    {c:'IV-9',n:'무엇 25가지',lv:9},
+    {c:'IV-10',n:'누구·어디 25가지',lv:10},
+    {c:'IV-11',n:'인트라버벌 의견 20가지',lv:11},
+    {c:'IV-12',n:'300가지 인트라버벌',lv:12},
+    {c:'IV-13',n:'15단어 단락 읽고 2가지 질문',lv:13},
+    {c:'IV-14',n:'25가지 사건 8단어 설명',lv:14},
+    {c:'IV-15',n:'주제별 4회 순환 10주제',lv:15},
+    ]
+  },
+  {
+    id:'class', name:'학급일과', short:'학급일과',
+    progs:[
+    {c:'CLS-6',n:'3분 착석',lv:6},
+    {c:'CLS-7',n:'한 차례 촉구로 소지품 관리',lv:7},
+    {c:'CLS-8',n:'한 차례 촉구로 활동 이동',lv:8},
+    {c:'CLS-9',n:'5분 문제행동 없이 착석',lv:9},
+    {c:'CLS-10',n:'10분 착석 50% 과제집중',lv:10},
+    {c:'CLS-11',n:'언어촉구로 손 씻기',lv:11},
+    {c:'CLS-12',n:'5가지 지시 직접촉구 없이',lv:12},
+    {c:'CLS-13',n:'5분 독립 활동 50% 집중',lv:13},
+    {c:'CLS-14',n:'15분 집단수업 2가지 학습',lv:14},
+    {c:'CLS-15',n:'20분 집단수업 5개 질문 대답',lv:15},
+    ]
+  },
+  {
+    id:'syntax', name:'구문·어법', short:'구문어법',
+    progs:[
+    {c:'SYN-6',n:'친숙한 성인이 10개 택트 알아들음',lv:6},
+    {c:'SYN-7',n:'청자어휘 100단어',lv:7},
+    {c:'SYN-8',n:'하루 10가지 2단어 구절',lv:8},
+    {c:'SYN-9',n:'5가지 운율 기능적 구사',lv:9},
+    {c:'SYN-10',n:'화자어휘 300단어',lv:10},
+    {c:'SYN-11',n:'복수·소유격 접미사 10개',lv:11},
+    {c:'SYN-12',n:'과거·미래형 어미 10개',lv:12},
+    {c:'SYN-13',n:'수식어 2개 포함 명사구 10개',lv:13},
+    {c:'SYN-14',n:'수식어 2개 포함 동사구 10개',lv:14},
+    {c:'SYN-15',n:'명사구+동사구 5단어 문장',lv:15},
+    ]
+  },
+  {
+    id:'math', name:'수학', short:'수학',
+    progs:[
+    {c:'MATH-11',n:'1~5 수 청자변별',lv:11},
+    {c:'MATH-12',n:'1~5 수 택트',lv:12},
+    {c:'MATH-13',n:'1~5 수 세어 물품 건네기',lv:13},
+    {c:'MATH-14',n:'8가지 측정치수 청자변별',lv:14},
+    {c:'MATH-15',n:'1~5 수↔수량 양방향 매칭',lv:15},
+    ]
+  },
 ];
 
 // VB-MAPP 전체 프로그램 flat 배열 (코드 검색용)
 const VBMAPP_FLAT = VBMAPP_AREAS.flatMap(area =>
-  Object.entries(area.levels).flatMap(([lv, progs]) =>
-    progs.map(p => ({...p, area:area.name, areaId:area.id, level:lv, source:'vbmapp'}))
-  )
+  (area.progs||[]).map(p => ({...p, area:area.name, areaId:area.id, source:'vbmapp'}))
 );
 
 // ════ PEAK GEN 프로그램 (LTO + 기본 STO) ════
@@ -1215,9 +1325,14 @@ function buildCustomPicker() {
   const w = document.getElementById('customChips');
   const customs = DB.customPrograms || [];
   if (!customs.length) { w.innerHTML='<div style="font-size:11px;color:var(--text3)">아직 개별 과제가 없어요</div>'; return; }
-  w.innerHTML = customs.map(p =>
-    `<div class="chip" id="ch-${p.c}" onclick="toggleProg('${p.c}','${p.n.replace(/'/g,"\\'")}','custom')">${p.c}</div>`
-  ).join('');
+  w.innerHTML = customs.map(p => {
+    const stos = (p.stos||[]).map((s,i)=>`${i+1}. ${s}`).join('|');
+    const tt = encodeURIComponent(p.c+'||'+p.n+'||'+stos);
+    return `<div class="chip" id="ch-${p.c||p._id}"
+      onclick="toggleProg('${p.c}','${p.n.replace(/'/g,"\\'")}','custom')"
+      onmouseenter="showChipTip(event,'${tt}')"
+      onmouseleave="hideChipTip()">${p.c}</div>`;
+  }).join('');
 }
 
 function switchPickerTab(tab, el) {
@@ -1233,17 +1348,14 @@ function switchPickerTab(tab, el) {
 function buildVbmappPicker() {
   const w = document.getElementById('vbmappLevels');
   w.innerHTML = VBMAPP_AREAS.map(area => {
-    const chips = Object.entries(area.levels).flatMap(([lv, progs]) =>
-      progs.map(p => {
+    const chips = (area.progs||[]).map(p => {
         const safeName = p.n.replace(/'/g,"\'").replace(/"/g,'&quot;');
-        const stoList = (p.stos||[]).map((s,i)=>`${i+1}. ${typeof s==='string'?s:s.name}`).join('|');
-        const tt = encodeURIComponent(p.c+'||'+p.n+'||'+stoList);
+        const tt = encodeURIComponent(p.c+'||'+p.n+'||');
         return `<div class="chip" id="ch-${p.c}"
           onclick="toggleProg('${p.c}','${safeName}','vbmapp')"
           onmouseenter="showChipTip(event,'${tt}')"
           onmouseleave="hideChipTip()">${p.c}</div>`;
-      })
-    ).join('');
+      }).join('');
     return `<div class="lv-row">
       <span class="lv-lbl" style="min-width:52px;font-size:10px">${area.short}</span>
       ${chips}
@@ -1422,6 +1534,15 @@ function addAdHocProgram() {
   if (!S.current) S.current = tmpCode;
   renderTabs(); renderRecPanel(); autoSave();
   showToast(`"${name.trim()}" 즉석 추가됨 (이 세션에만 저장)`, 'ok');
+}
+
+function editAdhocName(code) {
+  const p = S.board[code]; if (!p) return;
+  const newName = prompt('LTO 이름 수정:', p.name);
+  if (!newName?.trim()) return;
+  p.name = newName.trim();
+  renderTabs(); renderRecPanel(); autoSave();
+  showToast('이름 수정됨', 'ok');
 }
 
 function addStoField(value='') {
@@ -1908,6 +2029,7 @@ function loadSessionFromArchive(sessId, dateStr) {
   S.board = {};
   S.current = null;
   S.editingSessionId = sessId;
+  S.tabOrder = sess.tabOrder || [];
   document.querySelectorAll('.chip').forEach(c=>c.classList.remove('on'));
 
   document.getElementById('sTherapist').value = sess.therapist||'';
@@ -1986,7 +2108,7 @@ function autoSave() {
       indicator.style.color = 'var(--green)';
       setTimeout(() => { if(indicator) indicator.textContent=''; }, 3000);
     }
-  }, 60000); // 60초(1분) 후 자동저장
+  }, 30000); // 30초 자동저장
 }
 
 function buildSessionData() {
@@ -2003,6 +2125,7 @@ function buildSessionData() {
     duration: document.getElementById('sDur')?.value||'40',
     condition: document.getElementById('sCond')?.value||'보통',
     note: S.sessionNote || '',
+    tabOrder: [...S.tabOrder],
     programs: progs.map(p=>({
       code:p.code, name:p.name, source:p.source,
       stos: p.stos.map(s=>({name:s.name, trials:[...s.trials], blocks:(s.blocks||[]).map(b=>[...b]), memo:s.memo||''})),
@@ -2076,9 +2199,7 @@ function switchProgTab(tab, el) {
 function renderProgListVbmapp() {
   const wrap = document.getElementById('progListVbmapp');
   wrap.innerHTML = VBMAPP_AREAS.map(area => {
-    const cards = Object.entries(area.levels).flatMap(([lv, progs]) =>
-      progs.map(p => buildLTOCard({...p, area:area.name}, 'vbmapp'))
-    ).join('');
+    const cards = (area.progs||[]).map(p => buildLTOCard({...p, area:area.name}, 'vbmapp')).join('');
     return `<div style="margin-bottom:6px">
       <div style="font-size:11px;font-weight:500;color:var(--text2);padding:6px 0;letter-spacing:.04em">${area.name}</div>
       ${cards}
@@ -2141,6 +2262,9 @@ function buildLTOCard(lto, source) {
             onclick="event.stopPropagation();openEditLTO('${lto._id||lto.c}')">수정</button>
            <button class="btn btn-danger btn-sm" style="padding:2px 7px;font-size:10px;margin-left:2px"
             onclick="event.stopPropagation();deleteLTO('${lto._id||lto.c}')">삭제</button>`
+        : source==='adhoc'
+        ? `<button class="btn btn-ghost btn-sm" style="padding:2px 7px;font-size:10px;margin-left:4px"
+            onclick="event.stopPropagation();editAdhocName('${lto.c}')">이름 수정</button>`
         : ''}
     </div>
     <div class="lto-body hidden" id="lto-body-${lto.c}">
@@ -2403,10 +2527,8 @@ function renderG() {
   S._areaData = {};
   VBMAPP_AREAS.forEach(area=>{
     const areaTrials=[];
-    Object.values(area.levels).forEach(progs=>{
-      progs.forEach(p=>{
-        if(pm[p.c]) areaTrials.push(...pm[p.c].trials);
-      });
+    (area.progs||[]).forEach(p=>{
+      if(pm[p.c]) areaTrials.push(...pm[p.c].trials);
     });
     if(areaTrials.length) S._areaData[area.name]={short:area.short,trials:areaTrials};
   });
@@ -2563,13 +2685,35 @@ function renderHist() {
     const bc=pct>=80?'badge bg-g':pct>=50?'badge bg-b':'badge bg-r';
     return `<tr>
       <td style="font-family:var(--mono);font-size:11px">${s.date}</td>
-      <td><span style="color:var(--accent);font-family:var(--mono);margin-right:5px">${p.code}</span>${p.name}</td>
+      <td><span style="color:var(--accent);font-family:var(--mono);margin-right:5px">${p.code}</span><span id="hlto-${s.id}-${pi}">${p.name}</span>
+        <button onclick="editHistLTO('${s.id}',${pi})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:10px;margin-left:3px" title="이름 수정">✏</button></td>
       <td style="font-size:11px;color:var(--text3)">${sto.name}</td>
       <td style="font-family:var(--mono)">${t.length}회</td>
       <td><span class="${bc}">${pct}%</span> <span style="font-size:10px;color:var(--text3)">(P포함 ${pp}%)</span></td>
       <td style="color:var(--text3)">${s.therapist}</td>
     </tr>`;
   }))).filter(Boolean).join('');
+}
+
+// 히스토리에서 LTO 이름 수정
+function editHistLTO(sessId, progIdx) {
+  // 세션 찾기 (sessionArchive + sessions)
+  let sess = null, dateKey = null;
+  for (const [date, arr] of Object.entries(DB.sessionArchive)) {
+    const found = arr.find(s=>s.id===sessId);
+    if (found) { sess=found; dateKey=date; break; }
+  }
+  if (!sess) sess = DB.sessions.find(s=>s.id===sessId);
+  if (!sess?.programs?.[progIdx]) return;
+
+  const prog = sess.programs[progIdx];
+  const newName = prompt('LTO 이름 수정:', prog.name);
+  if (!newName?.trim() || newName.trim()===prog.name) return;
+
+  prog.name = newName.trim();
+  save();
+  renderHist();
+  showToast('LTO 이름 수정됨', 'ok');
 }
 
 // ════ 아동 관리 (추가+수정) ════
@@ -2586,6 +2730,13 @@ async function onChild(id) {
   document.getElementById('picker')?.classList.add('hidden');
   document.getElementById('pickerBtn').textContent = '+ 프로그램 추가';
 
+  // 기존 세션 보드 초기화
+  S.board = {}; S.current = null; S.editingSessionId = null; S.tabOrder = [];
+  S.sessionNote = '';
+  const noteEl = document.getElementById('sessionNote');
+  if (noteEl) noteEl.value = '';
+  document.querySelectorAll('.chip').forEach(ch=>ch.classList.remove('on'));
+
   S.child=DB.children.find(c=>c.id===id)||null;
   if(S.child){
     document.getElementById('rec-meta').textContent=`${S.child.name} · VB-MAPP ${S.child.vbmapp} · PEAK ${S.child.peak}`;
@@ -2593,6 +2744,13 @@ async function onChild(id) {
       // custom STO + 최근 30일 세션 기록 클라우드에서 불러오기
       await loadCustomStosFromCloud(S.child.id);
       await loadAllSessionsFromCloud(S.child.id);
+    }
+    // 오늘 날짜 세션 자동 로드
+    const todayStr = document.getElementById('sDate')?.value;
+    if (todayStr) {
+      const todaySess = (DB.sessionArchive[todayStr]||[]).find(s=>s.childId===S.child.id);
+      if (todaySess) loadSessionFromArchive(todaySess.id, todayStr);
+      else { renderTabs(); renderRecPanel(); }
     }
   }
   if(S.page==='graph')renderG();
@@ -2650,6 +2808,11 @@ function openEditChild(id) {
   document.getElementById('nc-p').value=c.peak||'Generalization';
   document.getElementById('nc-r').value=c.rate||80000;
   if(document.getElementById('nc-dur')) document.getElementById('nc-dur').value=c.sessionDur||'40';
+  if(document.getElementById('nc-time')) document.getElementById('nc-time').value=c.scheduleTime||'';
+  // 요일 체크박스 복원
+  document.querySelectorAll('#nc-days input').forEach(el=>{
+    el.checked=(c.scheduleDays||[]).includes(el.value);
+  });
   document.getElementById('nc-note').value=c.note||'';
   document.getElementById('childModal').classList.add('open');
 }
@@ -2665,6 +2828,8 @@ async function saveChild() {
     peak:document.getElementById('nc-p').value,
     rate:parseInt(document.getElementById('nc-r').value)||80000,
     sessionDur:document.getElementById('nc-dur')?.value||'40',
+    scheduleDays:[...document.querySelectorAll('#nc-days input:checked')].map(el=>el.value),
+    scheduleTime:document.getElementById('nc-time')?.value||'',
     note:document.getElementById('nc-note').value
   };
 
@@ -2721,7 +2886,7 @@ function doExport() {
 
 // ════ 페이지 전환 ════
 function go(page) {
-  ['rec','programs','graph','hist','attend','kids'].forEach(p=>{
+  ['rec','programs','graph','hist','attend','calendar','kids'].forEach(p=>{
     document.getElementById('p-'+p)?.classList.toggle('hidden',p!==page);
     document.getElementById('n-'+p)?.classList.toggle('active',p===page);
   });
@@ -2730,6 +2895,68 @@ function go(page) {
   if(page==='hist')renderHist();
   if(page==='programs')renderProgListPeak();
   if(page==='attend')initAttend();
+  if(page==='calendar')renderCalendar();
+}
+
+
+// ════ 수업 캘린더 ════
+let calYear = new Date().getFullYear();
+let calMonth = new Date().getMonth();
+
+const CAL_COLORS = ['#4f8ef7','#34d48a','#f5a623','#9b6dff','#f05656','#2ec4b6','#ff6b6b','#ffd93d'];
+const DOW_KR = ['일','월','화','수','목','금','토'];
+const DOW_EN = ['일','월','화','수','목','금','토'];
+
+function calPrev() { calMonth--; if(calMonth<0){calMonth=11;calYear--;} renderCalendar(); }
+function calNext() { calMonth++; if(calMonth>11){calMonth=0;calYear++;} renderCalendar(); }
+
+function renderCalendar() {
+  const grid = document.getElementById('calGrid');
+  const legend = document.getElementById('calLegend');
+  const title = document.getElementById('calTitle');
+  if(!grid) return;
+
+  title.textContent = `${calYear}년 ${calMonth+1}월`;
+
+  // 아동별 색상 + 일정
+  const kids = DB.children.filter(k=>k.scheduleDays?.length);
+  const kidColors = {};
+  kids.forEach((k,i)=>{ kidColors[k.id]=CAL_COLORS[i%CAL_COLORS.length]; });
+
+  // 헤더
+  const headers = DOW_KR.map(d=>`<div style="text-align:center;font-size:11px;color:var(--text3);padding:4px 0;font-weight:500">${d}</div>`).join('');
+
+  // 날짜 셀
+  const firstDay = new Date(calYear, calMonth, 1).getDay();
+  const daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
+  const today = new Date().toISOString().split('T')[0];
+
+  let cells = Array(firstDay).fill('<div></div>').join('');
+  for(let d=1; d<=daysInMonth; d++) {
+    const dateStr = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const dow = DOW_KR[new Date(calYear, calMonth, d).getDay()];
+    const isToday = dateStr===today;
+    const isWeekend = dow==='일'||dow==='토';
+
+    // 이 날 수업 있는 아동
+    const scheduled = kids.filter(k=>(k.scheduleDays||[]).includes(dow));
+    const dots = scheduled.map(k=>`<div style="width:7px;height:7px;border-radius:50%;background:${kidColors[k.id]};display:inline-block;margin:1px" title="${k.name} ${k.scheduleTime||''}"></div>`).join('');
+
+    cells += `<div style="min-height:52px;background:${isToday?'rgba(79,142,247,.15)':'var(--bg2)'};border-radius:6px;padding:4px;border:1px solid ${isToday?'var(--accent)':'var(--border)'};cursor:pointer" onclick="go('attend')">
+      <div style="font-size:11px;font-weight:${isToday?'700':'400'};color:${isWeekend?'var(--red)':isToday?'var(--accent)':'var(--text2)'};">${d}</div>
+      <div style="margin-top:2px">${dots}</div>
+    </div>`;
+  }
+
+  grid.innerHTML = headers + cells;
+
+  // 범례
+  legend.innerHTML = kids.map((k,i)=>
+    `<span style="display:flex;align-items:center;gap:4px">
+      <span style="width:10px;height:10px;border-radius:50%;background:${kidColors[k.id]};display:inline-block"></span>
+      <span style="color:var(--text2)">${k.name} (${(k.scheduleDays||[]).join('·')} ${k.scheduleTime||''} ${k.sessionDur||''}분)</span>
+    </span>`
+  ).join('');
 }
 
 // ════ 출결 관리 ════
