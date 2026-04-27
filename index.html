@@ -567,7 +567,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 // ════ Supabase 설정 ════
 // 아래 두 값을 본인 Supabase 프로젝트의 값으로 교체하세요
 const SUPA_URL = 'https://fkjjbgontwvznouxsmjl.supabase.co';
-const SUPA_KEY = 'sb_publishable_dz-n82-UGp6VqF2tDm9W7Q_4x-uwdmG';
+const SUPA_KEY = 'YOUR_PUBLISHABLE_KEY_HERE'; // 재발급한 키 입력
+
 const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
 
 // 온라인 여부 감지
@@ -2992,58 +2993,92 @@ function renderWeekCalendar(grid, legend, title) {
   const diffToMon = dayOfWeek===0 ? -6 : 1-dayOfWeek;
   mon.setDate(now.getDate() + diffToMon + calWeekOffset*7);
 
-  const weekDays = Array.from({length:7},(_,i)=>{
+  // 월~토 6일
+  const weekDays = Array.from({length:6},(_,i)=>{
     const d = new Date(mon); d.setDate(mon.getDate()+i); return d;
   });
 
   const todayStr = now.toISOString().split('T')[0];
-  title.textContent = `${weekDays[0].getMonth()+1}/${weekDays[0].getDate()} – ${weekDays[6].getMonth()+1}/${weekDays[6].getDate()}`;
+  title.textContent = `${weekDays[0].getMonth()+1}/${weekDays[0].getDate()} – ${weekDays[5].getMonth()+1}/${weekDays[5].getDate()}`;
+
+  // 타임 슬롯: 10:00 ~ 18:30, 30분 단위
+  const START_H = 10, END_H = 18, END_M = 30;
+  const slots = [];
+  for(let h=START_H; h<=END_H; h++) {
+    for(let m=0; m<60; m+=30) {
+      if(h===END_H && m>END_M) break;
+      slots.push({h, m, label:`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`});
+    }
+  }
+  const totalSlots = slots.length;
+
+  // 헤더 행 (시간 + 요일)
+  const DOW_SHORT = ['월','화','수','목','금','토'];
+  let html = `<div style="display:grid;grid-template-columns:48px repeat(6,1fr);gap:0;border:1px solid var(--border);border-radius:8px;overflow:hidden;font-size:11px">`;
 
   // 헤더
-  const headers = weekDays.map(d=>{
-    const dow = DOW_KR[d.getDay()];
+  html += `<div style="background:var(--bg3);padding:6px 4px;text-align:center;border-bottom:1px solid var(--border);border-right:1px solid var(--border);color:var(--text3)">시간</div>`;
+  weekDays.forEach((d,i)=>{
+    const dow = DOW_SHORT[i];
     const ds = d.toISOString().split('T')[0];
     const isToday = ds===todayStr;
-    const isWeekend = d.getDay()===0||d.getDay()===6;
-    return `<div style="text-align:center;padding:6px 2px;font-size:12px;font-weight:${isToday?'700':'500'};color:${isWeekend?'var(--red)':isToday?'var(--accent)':'var(--text2)'}">${dow} ${d.getDate()}</div>`;
-  }).join('');
-
-  // 각 날짜 셀
-  const cells = weekDays.map(d=>{
-    const dow = DOW_KR[d.getDay()];
-    const ds = d.toISOString().split('T')[0];
-    const isToday = ds===todayStr;
-
-    const scheduled = kids.filter(k=>{
-      const days = k.schedule?.map(s=>s.day) || k.scheduleDays || [];
-      return days.includes(dow);
-    });
-
-    const items = scheduled.map(k=>{
-      const sched = k.schedule?.find(s=>s.day===dow);
-      const time = sched?.time || '';
-      return `<div style="background:${kidColors[k.id]}22;border-left:3px solid ${kidColors[k.id]};border-radius:4px;padding:3px 6px;margin-bottom:3px;font-size:10px;color:var(--text)">
-        <div style="font-weight:500">${k.name}</div>
-        <div style="color:var(--text3)">${time} · ${k.sessionDur||''}분</div>
-      </div>`;
-    }).join('');
-
-    return `<div style="min-height:80px;background:${isToday?'rgba(79,142,247,.08)':'var(--bg2)'};border-radius:6px;padding:5px;border:1px solid ${isToday?'var(--accent)':'var(--border)'}">
-      ${items || '<div style="font-size:10px;color:var(--border);padding:4px 0">-</div>'}
+    const isWeekend = i>=5;
+    html += `<div style="background:${isToday?'rgba(79,142,247,.12)':'var(--bg3)'};padding:6px 4px;text-align:center;border-bottom:1px solid var(--border);${i<5?'border-right:1px solid var(--border)':''};font-weight:${isToday?700:500};color:${isWeekend?'var(--red)':isToday?'var(--accent)':'var(--text2)'}">
+      ${dow} <span style="font-size:10px;color:var(--text3)">${d.getDate()}</span>
     </div>`;
-  }).join('');
+  });
 
-  grid.style.gridTemplateColumns = 'repeat(7,1fr)';
-  grid.innerHTML = headers + cells;
+  // 슬롯 행
+  slots.forEach((slot, si) => {
+    const isHalfHour = slot.m === 30;
+    const rowBg = isHalfHour ? 'var(--bg)' : 'var(--bg2)';
+    const borderStyle = `border-bottom:1px solid ${isHalfHour?'var(--border)':'rgba(255,255,255,.04)'}`;
 
+    // 시간 레이블
+    html += `<div style="background:${rowBg};padding:3px 4px;text-align:right;${borderStyle};border-right:1px solid var(--border);color:var(--text3);font-size:10px;font-family:var(--mono);white-space:nowrap">${slot.label}</div>`;
+
+    // 각 요일 셀
+    weekDays.forEach((d, di) => {
+      const dow = DOW_SHORT[di];
+      // 이 슬롯에 수업 있는 아동 찾기
+      const scheduled = kids.filter(k=>{
+        const sched = k.schedule?.find(s=>s.day===dow);
+        if (!sched?.time) return false;
+        const [sh, sm] = sched.time.split(':').map(Number);
+        return sh===slot.h && sm===slot.m;
+      });
+
+      let cellContent = '';
+      scheduled.forEach(k=>{
+        const sched = k.schedule?.find(s=>s.day===dow);
+        const dur = parseInt(k.sessionDur||'40');
+        const slotCount = Math.ceil(dur/30);
+        cellContent += `<div style="background:${kidColors[k.id]}33;border-left:3px solid ${kidColors[k.id]};border-radius:4px;padding:2px 5px;margin:1px 0;font-size:10px;line-height:1.4">
+          <div style="font-weight:600;color:var(--text)">${k.name}</div>
+          <div style="color:var(--text3)">${sched.time} · ${dur}분</div>
+        </div>`;
+      });
+
+      const isToday = d.toISOString().split('T')[0]===todayStr;
+      html += `<div style="background:${isToday?'rgba(79,142,247,.04)':rowBg};min-height:24px;padding:1px 3px;${borderStyle};${di<5?'border-right:1px solid var(--border)':''}">${cellContent}</div>`;
+    });
+  });
+
+  html += '</div>';
+
+  grid.style.gridTemplateColumns = '1fr';
+  grid.innerHTML = html;
+
+  // 범례
   legend.innerHTML = kids.map((k,i)=>{
     const schedStr = (k.schedule||[]).map(s=>`${s.day} ${s.time}`).join(' · ') || (k.scheduleDays||[]).join('·');
     return `<span style="display:flex;align-items:center;gap:4px">
       <span style="width:10px;height:10px;border-radius:50%;background:${kidColors[k.id]};display:inline-block"></span>
-      <span style="color:var(--text2)">${k.name} (${schedStr})</span>
+      <span style="color:var(--text2)">${k.name} (${schedStr} · ${k.sessionDur||''}분)</span>
     </span>`;
   }).join('');
 }
+
 
 function calPrev() {
   if(calView==='week') { calWeekOffset--; }
@@ -3120,7 +3155,8 @@ function renderCalendar() {
 
 // 아동 코드 생성 (이름 없이 순번 코드)
 function childCode(idx) {
-  return '아동' + String.fromCharCode(65 + idx); // 아동A, 아동B...
+  // 출결 기록용: 아동 이름 사용 (엑셀 내보내기 시에도 이름 사용)
+  return DB.children[idx]?.name || ('아동' + String.fromCharCode(65 + idx));
 }
 
 function initAttend() {
