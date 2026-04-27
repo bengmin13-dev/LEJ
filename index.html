@@ -283,9 +283,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
       <input type="date" id="sDate" onchange="onDateChange(this.value)">
       <input type="text" id="sTherapist" placeholder="치료사" value="LEJ" style="width:90px">
       <select id="sDur">
-        <option value="40">40분</option>
         <option value="50">50분</option>
-        <option value="80">80분</option>
+        <option value="60">60분</option>
+        <option value="90">90분</option>
       </select>
       <select id="sCond">
         <option value="좋음">😊 좋음</option>
@@ -374,6 +374,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <div class="sg" id="gStats"></div>
     <div class="g2">
       <div class="cc"><div class="cc-t"><span class="dot"></span>독립반응률 추이</div><div class="cw"><canvas id="c1"></canvas></div></div>
+      <div class="cc"><div class="cc-t"><span class="dot" style="background:var(--amber)"></span>일별 정반응률</div><div class="cw"><canvas id="c1b"></canvas></div></div>
       <div class="cc"><div class="cc-t"><span class="dot" style="background:var(--purple)"></span>점수 분포</div><div class="cw"><canvas id="c2"></canvas></div></div>
     </div>
     <div class="cc">
@@ -495,9 +496,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <div class="fg"><label>세션 단가</label><input type="number" id="nc-r" value="80000"></div>
     <div class="fg"><label>주 참여 시간 (분)</label>
       <select id="nc-dur">
-        <option value="40">40분</option>
         <option value="50">50분</option>
-        <option value="80">80분</option>
+        <option value="60">60분</option>
+        <option value="90">90분</option>
       </select>
     </div>
     <div class="fg">
@@ -567,7 +568,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 // ════ Supabase 설정 ════
 // 아래 두 값을 본인 Supabase 프로젝트의 값으로 교체하세요
 const SUPA_URL = 'https://fkjjbgontwvznouxsmjl.supabase.co';
-const SUPA_KEY = 'sb_publishable_dz-n82-UGp6VqF2tDm9W7Q_4x-uwdmG';
+const SUPA_KEY = 'YOUR_PUBLISHABLE_KEY_HERE'; // 재발급한 키 입력
+
 const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
 
 // 온라인 여부 감지
@@ -615,13 +617,21 @@ async function syncStudentsFromCloud() {
     const { data, error } = await supa.from('students').select('*').order('created_at');
     if (error || !data) return;
     // 클라우드 데이터를 로컬 DB에 반영
-    DB.children = data.map(s => ({
-      id: s.id, name: s.name,
-      birth: s.birth_date, diag: s.diagnosis,
-      vbmapp: s.vbmapp_level, peak: s.peak_module,
-      rate: s.session_rate, note: s.note || '',
-      createdAt: s.created_at
-    }));
+    DB.children = data.map(s => {
+      let noteData = {};
+      try { noteData = typeof s.note==='string' && s.note.startsWith('{') ? JSON.parse(s.note) : {}; } catch(e){}
+      return {
+        id: s.id, name: s.name,
+        birth: s.birth_date, diag: s.diagnosis,
+        vbmapp: s.vbmapp_level, peak: s.peak_module,
+        rate: s.session_rate,
+        note: noteData.note || s.note || '',
+        sessionDur: noteData.sessionDur || '50',
+        schedule: noteData.schedule || [],
+        scheduleDays: noteData.scheduleDays || [],
+        createdAt: s.created_at
+      };
+    });
     save();
     renderChildSel();
     renderKids();
@@ -635,7 +645,13 @@ async function saveChildToCloud(data, editId) {
     const row = {
       name: data.name, birth_date: data.birth,
       diagnosis: data.diag, vbmapp_level: data.vbmapp,
-      peak_module: data.peak, session_rate: data.rate, note: data.note
+      peak_module: data.peak, session_rate: data.rate,
+      note: JSON.stringify({
+        note: data.note||'',
+        sessionDur: data.sessionDur||'50',
+        schedule: data.schedule||[],
+        scheduleDays: data.scheduleDays||[]
+      })
     };
     if (editId) {
       const { error } = await supa.from('students').update(row).eq('id', editId);
@@ -2082,9 +2098,13 @@ function loadSessionFromArchive(sessId, dateStr) {
   S.tabOrder = sess.tabOrder || [];
   document.querySelectorAll('.chip').forEach(c=>c.classList.remove('on'));
 
-  document.getElementById('sTherapist').value = sess.therapist||'';
-  document.getElementById('sDur').value = sess.duration||'40';
+  document.getElementById('sTherapist').value = sess.therapist||'LEJ';
+  document.getElementById('sDur').value = sess.duration||'50';
   document.getElementById('sCond').value = sess.condition||'보통';
+  // 세션 총평 복원
+  S.sessionNote = sess.note || '';
+  const noteEl = document.getElementById('sessionNote');
+  if (noteEl) noteEl.value = S.sessionNote;
 
   (sess.programs||[]).forEach(p => {
     S.board[p.code] = {
@@ -2174,11 +2194,11 @@ function buildSessionData() {
     therapist: document.getElementById('sTherapist')?.value||'미입력',
     duration: document.getElementById('sDur')?.value||'40',
     condition: document.getElementById('sCond')?.value||'보통',
-    note: S.sessionNote || '',
+    note: document.getElementById('sessionNote')?.value || S.sessionNote || '',
     tabOrder: [...S.tabOrder],
     programs: progs.map(p=>({
       code:p.code, name:p.name, source:p.source,
-      stos: p.stos.map(s=>({name:s.name, trials:[...s.trials], blocks:(s.blocks||[]).map(b=>[...b]), memo:s.memo||''})),
+      stos: p.stos.map(s=>({name:s.name, trials:[...s.trials], blocks:(s.blocks||[]).map(b=>[...b]), memo:s.memo||'', taskMemo:s.taskMemo||''})),
       memo:p.memo||''
     })),
     savedAt: new Date().toISOString()
@@ -2550,6 +2570,29 @@ function renderG() {
     }]},
     options:copt(0,100,'%')
   });
+
+  // 일별 정반응률 막대 차트
+  dc('c1b');
+  const dailyData = sess.map(s=>{
+    const t=s.programs.flatMap(p=>(p.stos||[]).flatMap(st=>[...(st.trials||[]),...(st.blocks||[]).flat()])).filter(t=>t);
+    return t.length ? {d:s.date.slice(5), pct:Math.round(t.filter(t=>t==='+').length/t.length*100)} : null;
+  }).filter(Boolean);
+  if (dailyData.length) {
+    S.charts.c1b=new Chart(document.getElementById('c1b').getContext('2d'),{
+      type:'bar',
+      data:{labels:dailyData.map(d=>d.d),datasets:[{
+        label:'일별 정반응률',
+        data:dailyData.map(d=>d.pct),
+        backgroundColor:dailyData.map(d=>d.pct>=80?'rgba(52,212,138,.7)':d.pct>=50?'rgba(79,142,247,.7)':'rgba(240,86,86,.7)'),
+        borderRadius:4
+      }]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{labels:{color:'#8b94b0',font:{size:11}}}},
+        scales:{x:{ticks:{color:'#4e5775',font:{size:10}},grid:{color:'rgba(255,255,255,.05)'}},
+          y:{min:0,max:100,ticks:{color:'#4e5775',callback:v=>v+'%'},grid:{color:'rgba(255,255,255,.05)'}}}}
+    });
+  }
+
 
   dc('c2');
   const tot=allT.length||1;
@@ -3047,15 +3090,44 @@ function renderWeekCalendar(grid, legend, title) {
         return sh===slot.h && sm===slot.m;
       });
 
+      // 이 슬롯이 다른 수업의 중간인지 확인 (연속 블록)
+      const continuing = kids.filter(k=>{
+        const sched = k.schedule?.find(s=>s.day===dow);
+        if (!sched?.time) return false;
+        const [sh, sm] = sched.time.split(':').map(Number);
+        const startMin = sh*60+sm;
+        const dur = parseInt(k.sessionDur||'50');
+        const curMin = slot.h*60+slot.m;
+        return curMin > startMin && curMin < startMin+dur;
+      });
+
       let cellContent = '';
+
+      // 시작 슬롯: 수업 이름 + 시간 표시, 높이는 참여시간 비율
       scheduled.forEach(k=>{
         const sched = k.schedule?.find(s=>s.day===dow);
-        const dur = parseInt(k.sessionDur||'40');
-        const slotCount = Math.ceil(dur/30);
-        cellContent += `<div style="background:${kidColors[k.id]}33;border-left:3px solid ${kidColors[k.id]};border-radius:4px;padding:2px 5px;margin:1px 0;font-size:10px;line-height:1.4">
+        const dur = parseInt(k.sessionDur||'50');
+        const fillPct = Math.min((dur/30)*100, 100); // 30분 슬롯 대비 %
+        const endH = Math.floor((slot.h*60+slot.m+dur)/60);
+        const endM = (slot.h*60+slot.m+dur)%60;
+        const endStr = String(endH).padStart(2,'0')+':'+String(endM).padStart(2,'0');
+        cellContent += `<div style="background:${kidColors[k.id]}33;border-left:3px solid ${kidColors[k.id]};border-radius:4px;padding:2px 5px;margin:1px 0;font-size:10px;line-height:1.4;height:${Math.min(fillPct,100)}%">
           <div style="font-weight:600;color:var(--text)">${k.name}</div>
-          <div style="color:var(--text3)">${sched.time} · ${dur}분</div>
+          <div style="color:var(--text3)">${sched.time}~${endStr}</div>
         </div>`;
+      });
+
+      // 연속 슬롯: 남은 비율만큼 색상 바만 표시
+      continuing.forEach(k=>{
+        const sched = k.schedule?.find(s=>s.day===dow);
+        const [sh, sm] = sched.time.split(':').map(Number);
+        const dur = parseInt(k.sessionDur||'50');
+        const startMin = sh*60+sm;
+        const curMin = slot.h*60+slot.m;
+        const elapsed = curMin - startMin;
+        const remaining = dur - elapsed;
+        const fillPct = Math.min((remaining/30)*100, 100);
+        cellContent += `<div style="background:${kidColors[k.id]}22;border-left:3px solid ${kidColors[k.id]};border-radius:0 4px 4px 0;height:${fillPct}%;min-height:4px"></div>`;
       });
 
       const isToday = d.toISOString().split('T')[0]===todayStr;
