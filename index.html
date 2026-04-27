@@ -451,6 +451,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     </div>
   </div>
   <div class="content">
+    <div style="display:flex;gap:4px;margin-bottom:10px">
+      <button class="btn btn-ghost btn-sm" id="calTabMonth" onclick="setCalView('month')" style="padding:4px 12px;background:rgba(79,142,247,.15);color:var(--accent);border-color:rgba(79,142,247,.5)">월간</button>
+      <button class="btn btn-ghost btn-sm" id="calTabWeek" onclick="setCalView('week')" style="padding:4px 12px">주간</button>
+    </div>
     <div id="calGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px"></div>
     <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;font-size:11px" id="calLegend"></div>
   </div>
@@ -496,12 +500,39 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
         <option value="80">80분</option>
       </select>
     </div>
-    <div class="fg"><label>수업 요일</label>
-      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px" id="nc-days">
-        ${['월','화','수','목','금','토','일'].map(d=>`<label style="display:flex;align-items:center;gap:3px;font-size:12px;cursor:pointer"><input type="checkbox" value="${d}" style="accent-color:var(--accent)"> ${d}</label>`).join('')}
+    <div class="fg">
+      <label>수업 요일 및 시간</label>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:6px" id="nc-days">
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px">
+          <label style="display:flex;align-items:center;gap:4px;width:32px;cursor:pointer"><input type="checkbox" value="월" class="day-chk" style="accent-color:var(--accent)"> 월</label>
+          <input type="text" class="day-time" placeholder="--:--" style="width:70px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 8px;font-size:11px;font-family:var(--font);outline:none" data-day="월">
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px">
+          <label style="display:flex;align-items:center;gap:4px;width:32px;cursor:pointer"><input type="checkbox" value="화" class="day-chk" style="accent-color:var(--accent)"> 화</label>
+          <input type="text" class="day-time" placeholder="--:--" style="width:70px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 8px;font-size:11px;font-family:var(--font);outline:none" data-day="화">
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px">
+          <label style="display:flex;align-items:center;gap:4px;width:32px;cursor:pointer"><input type="checkbox" value="수" class="day-chk" style="accent-color:var(--accent)"> 수</label>
+          <input type="text" class="day-time" placeholder="--:--" style="width:70px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 8px;font-size:11px;font-family:var(--font);outline:none" data-day="수">
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px">
+          <label style="display:flex;align-items:center;gap:4px;width:32px;cursor:pointer"><input type="checkbox" value="목" class="day-chk" style="accent-color:var(--accent)"> 목</label>
+          <input type="text" class="day-time" placeholder="--:--" style="width:70px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 8px;font-size:11px;font-family:var(--font);outline:none" data-day="목">
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px">
+          <label style="display:flex;align-items:center;gap:4px;width:32px;cursor:pointer"><input type="checkbox" value="금" class="day-chk" style="accent-color:var(--accent)"> 금</label>
+          <input type="text" class="day-time" placeholder="--:--" style="width:70px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 8px;font-size:11px;font-family:var(--font);outline:none" data-day="금">
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px">
+          <label style="display:flex;align-items:center;gap:4px;width:32px;cursor:pointer"><input type="checkbox" value="토" class="day-chk" style="accent-color:var(--accent)"> 토</label>
+          <input type="text" class="day-time" placeholder="--:--" style="width:70px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 8px;font-size:11px;font-family:var(--font);outline:none" data-day="토">
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px">
+          <label style="display:flex;align-items:center;gap:4px;width:32px;cursor:pointer"><input type="checkbox" value="일" class="day-chk" style="accent-color:var(--accent)"> 일</label>
+          <input type="text" class="day-time" placeholder="--:--" style="width:70px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 8px;font-size:11px;font-family:var(--font);outline:none" data-day="일">
+        </div>
       </div>
     </div>
-    <div class="fg"><label>수업 시간</label><input type="text" id="nc-time" placeholder="예: 14:00"></div>
     <div class="fg"><label>메모</label><textarea id="nc-note" rows="2" placeholder="특이사항, 주의사항..."></textarea></div>
     <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:14px">
       <button class="btn btn-ghost btn-sm" onclick="closeModal('childModal')">취소</button>
@@ -536,7 +567,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 // ════ Supabase 설정 ════
 // 아래 두 값을 본인 Supabase 프로젝트의 값으로 교체하세요
 const SUPA_URL = 'https://fkjjbgontwvznouxsmjl.supabase.co';
-const SUPA_KEY = 'sb_publishable_dz-n82-UGp6VqF2tDm9W7Q_4x-uwdmG';
+const SUPA_KEY = 'sb_publishable_dz-n82-UGp6VqF2tDm9W7Q_4x-uwdmG'; 
 const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
 
 // 온라인 여부 감지
@@ -1536,14 +1567,32 @@ function addAdHocProgram() {
   showToast(`"${name.trim()}" 즉석 추가됨 (이 세션에만 저장)`, 'ok');
 }
 
-function editAdhocName(code) {
+// 세션 내 LTO 이름 인라인 수정 (해당 세션에만 반영)
+function editSessionLTOName(code) {
   const p = S.board[code]; if (!p) return;
-  const newName = prompt('LTO 이름 수정:', p.name);
-  if (!newName?.trim()) return;
-  p.name = newName.trim();
-  renderTabs(); renderRecPanel(); autoSave();
-  showToast('이름 수정됨', 'ok');
+  const cur = p.name;
+  const el = document.getElementById('rec-lto-name-'+code);
+  if (!el) return;
+  el.innerHTML = `<input type="text" value="${cur.replace(/"/g,'&quot;')}"
+    style="background:var(--bg);border:1px solid var(--accent);border-radius:5px;color:var(--text);
+           padding:2px 7px;font-size:12px;font-family:var(--font);outline:none;width:180px"
+    onblur="saveSessionLTOName('${code}',this.value)"
+    onkeydown="if(event.key==='Enter')this.blur();">`;
+  el.querySelector('input')?.focus();
 }
+
+function saveSessionLTOName(code, val) {
+  const p = S.board[code]; if (!p) return;
+  if (val?.trim()) p.name = val.trim();
+  autoSave();
+  renderTabs(); renderRecPanel();
+}
+
+function editAdhocName(code) {
+  // 즉석 추가 프로그램도 동일한 인라인 수정 사용
+  editSessionLTOName(code);
+}
+
 
 function addStoField(value='') {
   const wrap = document.getElementById('sto-fields');
@@ -1715,7 +1764,8 @@ function renderRecPanel() {
   <div class="rec-head">
     <div style="display:flex;align-items:center;gap:8px">
       <span class="rec-code">${p.code}</span>
-      <span class="rec-name">${p.name}</span>
+      <span class="rec-name" id="rec-lto-name-${p.code}">${p.name}</span>
+      <button onclick="editSessionLTOName('${p.code}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:0 3px" title="이름 수정">✏</button>
     </div>
     <div style="display:flex;align-items:center;gap:8px">
       <span style="font-size:10px;color:var(--text3)">전체</span>
@@ -2736,6 +2786,8 @@ async function onChild(id) {
   const noteEl = document.getElementById('sessionNote');
   if (noteEl) noteEl.value = '';
   document.querySelectorAll('.chip').forEach(ch=>ch.classList.remove('on'));
+  // 즉시 화면 비우기 (이전 아동 기록이 남지 않도록)
+  renderTabs(); renderRecPanel();
 
   S.child=DB.children.find(c=>c.id===id)||null;
   if(S.child){
@@ -2809,9 +2861,13 @@ function openEditChild(id) {
   document.getElementById('nc-r').value=c.rate||80000;
   if(document.getElementById('nc-dur')) document.getElementById('nc-dur').value=c.sessionDur||'40';
   if(document.getElementById('nc-time')) document.getElementById('nc-time').value=c.scheduleTime||'';
-  // 요일 체크박스 복원
-  document.querySelectorAll('#nc-days input').forEach(el=>{
-    el.checked=(c.scheduleDays||[]).includes(el.value);
+  // 요일별 시간 복원
+  document.querySelectorAll('#nc-days .day-chk').forEach(el=>{
+    const sched = (c.schedule||[]).find(s=>s.day===el.value);
+    const legacy = (c.scheduleDays||[]).includes(el.value);
+    el.checked = !!(sched || legacy);
+    const timeEl = document.querySelector(`#nc-days .day-time[data-day="${el.value}"]`);
+    if (timeEl) timeEl.value = sched?.time || '';
   });
   document.getElementById('nc-note').value=c.note||'';
   document.getElementById('childModal').classList.add('open');
@@ -2828,8 +2884,11 @@ async function saveChild() {
     peak:document.getElementById('nc-p').value,
     rate:parseInt(document.getElementById('nc-r').value)||80000,
     sessionDur:document.getElementById('nc-dur')?.value||'40',
-    scheduleDays:[...document.querySelectorAll('#nc-days input:checked')].map(el=>el.value),
-    scheduleTime:document.getElementById('nc-time')?.value||'',
+    schedule: [...document.querySelectorAll('#nc-days .day-chk:checked')].map(el=>({
+      day: el.value,
+      time: document.querySelector(`#nc-days .day-time[data-day="${el.value}"]`)?.value||''
+    })),
+    scheduleDays:[...document.querySelectorAll('#nc-days .day-chk:checked')].map(el=>el.value),
     note:document.getElementById('nc-note').value
   };
 
@@ -2902,13 +2961,100 @@ function go(page) {
 // ════ 수업 캘린더 ════
 let calYear = new Date().getFullYear();
 let calMonth = new Date().getMonth();
+let calView = 'month'; // 'month' | 'week'
+let calWeekOffset = 0; // 주간 뷰 오프셋
+
+function setCalView(v) {
+  calView = v;
+  calWeekOffset = 0;
+  document.getElementById('calTabMonth').style.background = v==='month'?'rgba(79,142,247,.15)':'transparent';
+  document.getElementById('calTabMonth').style.color = v==='month'?'var(--accent)':'var(--text2)';
+  document.getElementById('calTabMonth').style.borderColor = v==='month'?'rgba(79,142,247,.5)':'var(--border)';
+  document.getElementById('calTabWeek').style.background = v==='week'?'rgba(79,142,247,.15)':'transparent';
+  document.getElementById('calTabWeek').style.color = v==='week'?'var(--accent)':'var(--text2)';
+  document.getElementById('calTabWeek').style.borderColor = v==='week'?'rgba(79,142,247,.5)':'var(--border)';
+  renderCalendar();
+}
 
 const CAL_COLORS = ['#4f8ef7','#34d48a','#f5a623','#9b6dff','#f05656','#2ec4b6','#ff6b6b','#ffd93d'];
 const DOW_KR = ['일','월','화','수','목','금','토'];
 const DOW_EN = ['일','월','화','수','목','금','토'];
 
-function calPrev() { calMonth--; if(calMonth<0){calMonth=11;calYear--;} renderCalendar(); }
-function calNext() { calMonth++; if(calMonth>11){calMonth=0;calYear++;} renderCalendar(); }
+function renderWeekCalendar(grid, legend, title) {
+  const kids = DB.children.filter(k=>k.schedule?.length || k.scheduleDays?.length);
+  const kidColors = {};
+  kids.forEach((k,i)=>{ kidColors[k.id]=CAL_COLORS[i%CAL_COLORS.length]; });
+
+  // 이번 주 월요일 기준
+  const now = new Date();
+  const mon = new Date(now);
+  const dayOfWeek = now.getDay();
+  const diffToMon = dayOfWeek===0 ? -6 : 1-dayOfWeek;
+  mon.setDate(now.getDate() + diffToMon + calWeekOffset*7);
+
+  const weekDays = Array.from({length:7},(_,i)=>{
+    const d = new Date(mon); d.setDate(mon.getDate()+i); return d;
+  });
+
+  const todayStr = now.toISOString().split('T')[0];
+  title.textContent = `${weekDays[0].getMonth()+1}/${weekDays[0].getDate()} – ${weekDays[6].getMonth()+1}/${weekDays[6].getDate()}`;
+
+  // 헤더
+  const headers = weekDays.map(d=>{
+    const dow = DOW_KR[d.getDay()];
+    const ds = d.toISOString().split('T')[0];
+    const isToday = ds===todayStr;
+    const isWeekend = d.getDay()===0||d.getDay()===6;
+    return `<div style="text-align:center;padding:6px 2px;font-size:12px;font-weight:${isToday?'700':'500'};color:${isWeekend?'var(--red)':isToday?'var(--accent)':'var(--text2)'}">${dow} ${d.getDate()}</div>`;
+  }).join('');
+
+  // 각 날짜 셀
+  const cells = weekDays.map(d=>{
+    const dow = DOW_KR[d.getDay()];
+    const ds = d.toISOString().split('T')[0];
+    const isToday = ds===todayStr;
+
+    const scheduled = kids.filter(k=>{
+      const days = k.schedule?.map(s=>s.day) || k.scheduleDays || [];
+      return days.includes(dow);
+    });
+
+    const items = scheduled.map(k=>{
+      const sched = k.schedule?.find(s=>s.day===dow);
+      const time = sched?.time || '';
+      return `<div style="background:${kidColors[k.id]}22;border-left:3px solid ${kidColors[k.id]};border-radius:4px;padding:3px 6px;margin-bottom:3px;font-size:10px;color:var(--text)">
+        <div style="font-weight:500">${k.name}</div>
+        <div style="color:var(--text3)">${time} · ${k.sessionDur||''}분</div>
+      </div>`;
+    }).join('');
+
+    return `<div style="min-height:80px;background:${isToday?'rgba(79,142,247,.08)':'var(--bg2)'};border-radius:6px;padding:5px;border:1px solid ${isToday?'var(--accent)':'var(--border)'}">
+      ${items || '<div style="font-size:10px;color:var(--border);padding:4px 0">-</div>'}
+    </div>`;
+  }).join('');
+
+  grid.style.gridTemplateColumns = 'repeat(7,1fr)';
+  grid.innerHTML = headers + cells;
+
+  legend.innerHTML = kids.map((k,i)=>{
+    const schedStr = (k.schedule||[]).map(s=>`${s.day} ${s.time}`).join(' · ') || (k.scheduleDays||[]).join('·');
+    return `<span style="display:flex;align-items:center;gap:4px">
+      <span style="width:10px;height:10px;border-radius:50%;background:${kidColors[k.id]};display:inline-block"></span>
+      <span style="color:var(--text2)">${k.name} (${schedStr})</span>
+    </span>`;
+  }).join('');
+}
+
+function calPrev() {
+  if(calView==='week') { calWeekOffset--; }
+  else { calMonth--; if(calMonth<0){calMonth=11;calYear--;} }
+  renderCalendar();
+}
+function calNext() {
+  if(calView==='week') { calWeekOffset++; }
+  else { calMonth++; if(calMonth>11){calMonth=0;calYear++;} }
+  renderCalendar();
+}
 
 function renderCalendar() {
   const grid = document.getElementById('calGrid');
@@ -2916,10 +3062,12 @@ function renderCalendar() {
   const title = document.getElementById('calTitle');
   if(!grid) return;
 
+  if (calView==='week') { renderWeekCalendar(grid, legend, title); return; }
+
   title.textContent = `${calYear}년 ${calMonth+1}월`;
 
   // 아동별 색상 + 일정
-  const kids = DB.children.filter(k=>k.scheduleDays?.length);
+  const kids = DB.children.filter(k=>k.schedule?.length || k.scheduleDays?.length);
   const kidColors = {};
   kids.forEach((k,i)=>{ kidColors[k.id]=CAL_COLORS[i%CAL_COLORS.length]; });
 
@@ -2939,8 +3087,15 @@ function renderCalendar() {
     const isWeekend = dow==='일'||dow==='토';
 
     // 이 날 수업 있는 아동
-    const scheduled = kids.filter(k=>(k.scheduleDays||[]).includes(dow));
-    const dots = scheduled.map(k=>`<div style="width:7px;height:7px;border-radius:50%;background:${kidColors[k.id]};display:inline-block;margin:1px" title="${k.name} ${k.scheduleTime||''}"></div>`).join('');
+    const scheduled = kids.filter(k=>{
+      const days = k.schedule?.map(s=>s.day) || k.scheduleDays || [];
+      return days.includes(dow);
+    });
+    const dots = scheduled.map(k=>{
+      const sched = k.schedule?.find(s=>s.day===dow);
+      const time = sched?.time || k.scheduleTime || '';
+      return `<div style="width:7px;height:7px;border-radius:50%;background:${kidColors[k.id]};display:inline-block;margin:1px" title="${k.name} ${time}"></div>`;
+    }).join('');
 
     cells += `<div style="min-height:52px;background:${isToday?'rgba(79,142,247,.15)':'var(--bg2)'};border-radius:6px;padding:4px;border:1px solid ${isToday?'var(--accent)':'var(--border)'};cursor:pointer" onclick="go('attend')">
       <div style="font-size:11px;font-weight:${isToday?'700':'400'};color:${isWeekend?'var(--red)':isToday?'var(--accent)':'var(--text2)'};">${d}</div>
@@ -2951,12 +3106,14 @@ function renderCalendar() {
   grid.innerHTML = headers + cells;
 
   // 범례
-  legend.innerHTML = kids.map((k,i)=>
-    `<span style="display:flex;align-items:center;gap:4px">
+  legend.innerHTML = kids.map((k,i)=>{
+    const schedStr = (k.schedule||[]).map(s=>`${s.day} ${s.time}`).join(' · ')
+      || (k.scheduleDays||[]).join('·');
+    return `<span style="display:flex;align-items:center;gap:4px">
       <span style="width:10px;height:10px;border-radius:50%;background:${kidColors[k.id]};display:inline-block"></span>
-      <span style="color:var(--text2)">${k.name} (${(k.scheduleDays||[]).join('·')} ${k.scheduleTime||''} ${k.sessionDur||''}분)</span>
-    </span>`
-  ).join('');
+      <span style="color:var(--text2)">${k.name} (${schedStr} · ${k.sessionDur||''}분)</span>
+    </span>`;
+  }).join('');
 }
 
 // ════ 출결 관리 ════
