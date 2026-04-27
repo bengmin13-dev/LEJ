@@ -366,6 +366,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   <div class="topbar">
     <div class="topbar-title">진행 그래프</div>
     <select id="gPer" onchange="renderG()" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:5px 8px;font-size:11px;font-family:var(--font);outline:none">
+      <option value="1">1일</option>
       <option value="7">7일</option><option value="14">2주</option>
       <option value="30" selected>1달</option><option value="90">3달</option>
     </select>
@@ -374,7 +375,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <div class="sg" id="gStats"></div>
     <div class="g2">
       <div class="cc"><div class="cc-t"><span class="dot"></span>독립반응률 추이</div><div class="cw"><canvas id="c1"></canvas></div></div>
-      <div class="cc"><div class="cc-t"><span class="dot" style="background:var(--amber)"></span>일별 정반응률</div><div class="cw"><canvas id="c1b"></canvas></div></div>
       <div class="cc"><div class="cc-t"><span class="dot" style="background:var(--purple)"></span>점수 분포</div><div class="cw"><canvas id="c2"></canvas></div></div>
     </div>
     <div class="cc">
@@ -568,7 +568,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 // ════ Supabase 설정 ════
 // 아래 두 값을 본인 Supabase 프로젝트의 값으로 교체하세요
 const SUPA_URL = 'https://fkjjbgontwvznouxsmjl.supabase.co';
-const SUPA_KEY = 'sb_publishable_dz-n82-UGp6VqF2tDm9W7Q_4x-uwdmG'; 
+const SUPA_KEY = 'YOUR_PUBLISHABLE_KEY_HERE'; // 재발급한 키 입력
+
 const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
 
 // 온라인 여부 감지
