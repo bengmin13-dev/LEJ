@@ -568,7 +568,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 // ════ Supabase 설정 ════
 // 아래 두 값을 본인 Supabase 프로젝트의 값으로 교체하세요
 const SUPA_URL = 'https://fkjjbgontwvznouxsmjl.supabase.co';
-const SUPA_KEY = 'sb_publishable_dz-n82-UGp6VqF2tDm9W7Q_4x-uwdmG'; // 재발급한 키 입력
+const SUPA_KEY = 'YOUR_PUBLISHABLE_KEY_HERE'; // 재발급한 키 입력
 
 const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
 
@@ -2570,28 +2570,6 @@ function renderG() {
     }]},
     options:copt(0,100,'%')
   });
-
-  // 일별 정반응률 막대 차트
-  dc('c1b');
-  const dailyData = sess.map(s=>{
-    const t=s.programs.flatMap(p=>(p.stos||[]).flatMap(st=>[...(st.trials||[]),...(st.blocks||[]).flat()])).filter(t=>t);
-    return t.length ? {d:s.date.slice(5), pct:Math.round(t.filter(t=>t==='+').length/t.length*100)} : null;
-  }).filter(Boolean);
-  if (dailyData.length) {
-    S.charts.c1b=new Chart(document.getElementById('c1b').getContext('2d'),{
-      type:'bar',
-      data:{labels:dailyData.map(d=>d.d),datasets:[{
-        label:'일별 정반응률',
-        data:dailyData.map(d=>d.pct),
-        backgroundColor:dailyData.map(d=>d.pct>=80?'rgba(52,212,138,.7)':d.pct>=50?'rgba(79,142,247,.7)':'rgba(240,86,86,.7)'),
-        borderRadius:4
-      }]},
-      options:{responsive:true,maintainAspectRatio:false,
-        plugins:{legend:{labels:{color:'#8b94b0',font:{size:11}}}},
-        scales:{x:{ticks:{color:'#4e5775',font:{size:10}},grid:{color:'rgba(255,255,255,.05)'}},
-          y:{min:0,max:100,ticks:{color:'#4e5775',callback:v=>v+'%'},grid:{color:'rgba(255,255,255,.05)'}}}}
-    });
-  }
 
 
   dc('c2');
