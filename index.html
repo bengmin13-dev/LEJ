@@ -651,7 +651,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 // ════ Supabase 설정 ════
 // 아래 두 값을 본인 Supabase 프로젝트의 값으로 교체하세요
 const SUPA_URL = 'https://fkjjbgontwvznouxsmjl.supabase.co';
-const SUPA_KEY = 'sb_publishable_dz-n82-UGp6VqF2tDm9W7Q_4x-uwdmG'; // 재발급한 키 입력
+const SUPA_KEY = 'YOUR_PUBLISHABLE_KEY_HERE'; // 재발급한 키 입력
 
 const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
 
@@ -3062,12 +3062,10 @@ function renderHist() {
 // ════ 오늘 일지 생성 (Claude API) ════
 function generateDailyNote() {
   if (!S.child) { showToast('아동을 선택해주세요','err'); return; }
-  // 날짜 선택: noteTargetDate 우선, 없으면 sDate
   const dateStr = document.getElementById('noteTargetDate')?.value
     || document.getElementById('sDate')?.value
     || new Date().toISOString().split('T')[0];
 
-  // sessionArchive + sessions 모두 확인
   const allSess = [...(DB.sessionArchive[dateStr]||[]), ...DB.sessions.filter(s=>s.date===dateStr)];
   const sess = allSess.find(s=>s.childId===S.child.id && s.programs?.length);
   if (!sess) { showToast(dateStr + ' 세션 기록이 없습니다','err'); return; }
@@ -3078,63 +3076,65 @@ function generateDailyNote() {
   panel.classList.remove('hidden');
   dateLabel.textContent = dateStr + ' · ' + S.child.name;
 
-  // 세션 데이터 분석
-  const progResults = [];
-  let totalPlus = 0, totalTrials = 0;
-
-  sess.programs.forEach(function(p) {
-    const pTrials = (p.stos||[]).flatMap(function(s){
-      return [].concat(s.trials||[]).concat((s.blocks||[]).reduce(function(a,b){return a.concat(b)},[]))
-    }).filter(function(t){return t;});
-    if (!pTrials.length) return;
-    const pPlus = pTrials.filter(function(t){return t==='+'}).length;
-    const pPct = Math.round(pPlus/pTrials.length*100);
-    totalPlus += pPlus; totalTrials += pTrials.length;
-
-    // STO 메모 수집
-    const memos = (p.stos||[]).map(function(s){return s.memo||s.taskMemo||'';}).filter(Boolean);
-    progResults.push({ name: p.name, pct: pPct, trials: pTrials.length, memos: memos });
-  });
-
-  const overallPct = totalTrials ? Math.round(totalPlus/totalTrials*100) : 0;
-  const hi = progResults.filter(function(p){return p.pct>=80;});
-  const lo = progResults.filter(function(p){return p.pct<50;});
-  const mid = progResults.filter(function(p){return p.pct>=50&&p.pct<80;});
-
-  // 자동 일지 생성
   const NL = String.fromCharCode(10);
   const lines = [];
   lines.push('[' + dateStr + ' 수업 일지]');
   lines.push('');
-  lines.push('오늘 수업에서 ' + sess.programs.filter(function(p){
-    return (p.stos||[]).some(function(s){
-      return [].concat(s.trials||[]).concat((s.blocks||[]).reduce(function(a,b){return a.concat(b)},[])).filter(function(t){return t;}).length>0;
+
+  // 전체 정반응률
+  let totalPlus=0, totalTrials=0;
+  sess.programs.forEach(function(p){
+    (p.stos||[]).forEach(function(s){
+      const t=[].concat(s.trials||[]).concat((s.blocks||[]).reduce(function(a,b){return a.concat(b)},[])).filter(function(x){return x;});
+      totalPlus+=t.filter(function(x){return x==='+'}).length;
+      totalTrials+=t.length;
     });
-  }).length + '개 프로그램을 진행하였습니다. 전체 정반응률은 ' + overallPct + '%입니다.');
+  });
+  if(totalTrials) lines.push('전체 정반응률: '+Math.round(totalPlus/totalTrials*100)+'% ('+totalPlus+'/'+totalTrials+'회)');
+  lines.push('');
 
-  if (hi.length) {
-    lines.push('');
-    lines.push('✅ 잘 수행한 프로그램: ' + hi.map(function(p){return p.name+'('+p.pct+'%)'}).join(', '));
-  }
-  if (mid.length) {
-    lines.push('');
-    lines.push('📈 진행 중인 프로그램: ' + mid.map(function(p){return p.name+'('+p.pct+'%)'}).join(', '));
-  }
-  if (lo.length) {
-    lines.push('');
-    lines.push('🔄 추가 연습 필요: ' + lo.map(function(p){return p.name+'('+p.pct+'%)'}).join(', '));
-  }
+  // (1)(2) 프로그램별 STO 상세 분석
+  sess.programs.forEach(function(p){
+    const stoData = (p.stos||[]).map(function(s){
+      const t=[].concat(s.trials||[]).concat((s.blocks||[]).reduce(function(a,b){return a.concat(b)},[])).filter(function(x){return x;});
+      if(!t.length) return null;
+      const plus=t.filter(function(x){return x==='+'}).length;
+      const pct=Math.round(plus/t.length*100);
 
-  // 메모 반영
-  const allMemos = progResults.flatMap(function(p){return p.memos;});
-  if (allMemos.length) {
-    lines.push('');
-    lines.push('💬 특이사항: ' + allMemos.slice(0,3).join(' / '));
-  }
+      // (2) +,-,P 흐름 분석
+      let trend='';
+      if(t.length>=4){
+        const half=Math.floor(t.length/2);
+        const first=t.slice(0,half), second=t.slice(half);
+        const fp=Math.round(first.filter(function(x){return x==='+'}).length/first.length*100);
+        const sp=Math.round(second.filter(function(x){return x==='+'}).length/second.length*100);
+        if(sp-fp>=20) trend=' → 후반 개선 ('+fp+'%→'+sp+'%)';
+        else if(fp-sp>=20) trend=' → 후반 어려움 ('+fp+'%→'+sp+'%)';
+        else if(pct>=80) trend=' → 전반적으로 잘 수행';
+      }
+      return {name:s.name, pct:pct, cnt:t.length, trend:trend, memo:s.memo||'', taskMemo:s.taskMemo||''};
+    }).filter(Boolean);
 
-  if (sess.note) {
+    if(!stoData.length) return;
+
+    // 시도 수 많은 것 / 완수된 것 우선
+    const sorted=stoData.slice().sort(function(a,b){return b.cnt-a.cnt;});
+    const mastered=stoData.filter(function(s){return s.pct>=80;});
+
+    lines.push('【'+p.name+'】');
+    sorted.forEach(function(s){
+      const tag=s.pct>=80?'✅':s.pct>=50?'📈':'🔄';
+      lines.push('  '+tag+' '+s.name+': '+s.pct+'% ('+s.cnt+'회)'+s.trend);
+      if(s.memo) lines.push('    💬 '+s.memo);
+      if(s.taskMemo) lines.push('    📌 SD: '+s.taskMemo);
+    });
     lines.push('');
-    lines.push('📝 세션 메모: ' + sess.note);
+  });
+
+  // (3) 세션 총평 메모
+  if(sess.note){
+    lines.push('📝 세션 총평: '+sess.note);
+    lines.push('');
   }
 
   textarea.value = lines.join(NL);
@@ -3636,3 +3636,5 @@ function renderCalendar() {
       +'</span>';
   }).join('');
 }
+
+
