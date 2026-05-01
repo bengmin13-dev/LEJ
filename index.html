@@ -629,7 +629,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 // ════ Supabase 설정 ════
 // 아래 두 값을 본인 Supabase 프로젝트의 값으로 교체하세요
 const SUPA_URL = 'https://fkjjbgontwvznouxsmjl.supabase.co';
-const SUPA_KEY = 'sb_publishable_dz-n82-UGp6VqF2tDm9W7Q_4x-uwdmG';
+const SUPA_KEY = 'YOUR_PUBLISHABLE_KEY_HERE'; // 재발급한 키 입력
+
 const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
 
 // 온라인 여부 감지
@@ -2999,7 +3000,7 @@ function renderHist() {
     .filter(s=>s.childId===S.child.id)
     .sort((a,b)=>b.date.localeCompare(a.date));
   if(!sess.length){b.innerHTML='<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text3)">기록이 없습니다</td></tr>';return;}
-  b.innerHTML=sess.flatMap(s=>s.programs.flatMap(p=>p.stos.map((sto,si)=>{
+  b.innerHTML=sess.flatMap(s=>s.programs.flatMap((p,pi)=>p.stos.map((sto,si)=>{
     const t=[...(sto.trials||[]),...(sto.blocks||[]).flat()].filter(t=>t);
     if(!t.length)return '';
     const pct=Math.round(t.filter(t=>t==='+').length/t.length*100);
