@@ -408,8 +408,23 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 
 <!-- ══ 히스토리 ══ -->
 <div id="p-hist" class="hidden fade-in">
-  <div class="topbar"><div class="topbar-title">세션 히스토리</div></div>
+  <div class="topbar">
+    <div class="topbar-title">세션 히스토리</div>
+    <button class="btn btn-primary btn-sm" onclick="generateDailyNote()" style="margin-left:auto">✍️ 오늘 일지 생성</button>
+  </div>
   <div class="content">
+    <!-- 일지 패널 -->
+    <div id="dailyNotePanel" class="hidden" style="margin-bottom:12px;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--rl);padding:14px 16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <span style="font-size:12px;font-weight:600;color:var(--text)">📋 오늘 수업 일지</span>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-primary btn-sm" onclick="saveDailyNote()">저장</button>
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('dailyNotePanel').classList.add('hidden')">닫기</button>
+        </div>
+      </div>
+      <textarea id="dailyNoteText" rows="7" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:8px 10px;font-size:12px;font-family:var(--font);outline:none;resize:vertical;line-height:1.7" placeholder="일지 생성 중..."></textarea>
+      <div id="dailyNoteDate" style="font-size:10px;color:var(--text3);margin-top:4px"></div>
+    </div>
     <div id="masteredSection" style="margin-bottom:12px"></div>
     <div class="cc">
       <table class="ht">
@@ -417,10 +432,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
         <tbody id="histBody"></tbody>
       </table>
     </div>
+    <div id="dailyNotesList" style="margin-top:16px"></div>
   </div>
 </div>
-
-<!-- ══ 출결 관리 ══ -->
 <div id="p-attend" class="hidden fade-in">
   <div class="topbar">
     <div class="topbar-title">출결 관리</div>
@@ -615,7 +629,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 // ════ Supabase 설정 ════
 // 아래 두 값을 본인 Supabase 프로젝트의 값으로 교체하세요
 const SUPA_URL = 'https://fkjjbgontwvznouxsmjl.supabase.co';
-const SUPA_KEY = 'sb_publishable_dz-n82-UGp6VqF2tDm9W7Q_4x-uwdmG'; // 재발급한 키 입력
+const SUPA_KEY = 'YOUR_PUBLISHABLE_KEY_HERE'; // 재발급한 키 입력
 
 const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
 
@@ -1675,7 +1689,7 @@ function markMastered(code) {
 
 function renderMasteredPage() {
   if (!S.child) { showToast('아동을 선택해주세요','err'); return; }
-  go('mastered');
+  if (S.page !== 'mastered') go('mastered');
   const childId = S.child.id;
   const list = DB.masteredProgs[childId] || [];
   const wrap = document.getElementById('masteredList');
@@ -3026,6 +3040,24 @@ function renderHist() {
       <td style="color:var(--text3)">${s.therapist}</td>
     </tr>`;
   }))).filter(Boolean).join('');
+
+  // 저장된 일지 목록 렌더
+  const notesWrap = document.getElementById('dailyNotesList');
+  if (notesWrap && S.child) {
+    const notes = (DB.dailyNotes[S.child.id]||[]).sort((a,b)=>b.date.localeCompare(a.date));
+    if (notes.length) {
+      notesWrap.innerHTML = '<div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px">📋 저장된 일지 ('+notes.length+'개)</div>'
+        + notes.map((n,i) => '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:10px 14px;margin-bottom:6px">'
+          + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
+          + '<span style="font-size:11px;font-family:var(--mono);color:var(--accent)">'+n.date+'</span>'
+          + '<button class="btn btn-danger btn-sm" style="padding:2px 7px;font-size:10px" onclick="deleteDailyNote(\''+S.child.id+'\','+i+')">삭제</button>'
+          + '</div>'
+          + '<div style="font-size:12px;color:var(--text);line-height:1.7;white-space:pre-line">'+n.text+'</div>'
+          + '</div>').join('');
+    } else {
+      notesWrap.innerHTML = '';
+    }
+  }
 }
 
 // ════ 오늘 일지 생성 (Claude API) ════
@@ -3336,6 +3368,7 @@ function go(page) {
   if(page==='programs')renderProgListPeak();
   if(page==='attend')initAttend();
   if(page==='calendar')renderCalendar();
+  if(page==='mastered')renderMasteredPage();
 }
 
 
