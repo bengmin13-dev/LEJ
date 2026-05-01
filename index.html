@@ -629,7 +629,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 // ════ Supabase 설정 ════
 // 아래 두 값을 본인 Supabase 프로젝트의 값으로 교체하세요
 const SUPA_URL = 'https://fkjjbgontwvznouxsmjl.supabase.co';
-const SUPA_KEY = 'sb_publishable_dz-n82-UGp6VqF2tDm9W7Q_4x-uwdmG'; // 재발급한 키 입력
+const SUPA_KEY = 'YOUR_PUBLISHABLE_KEY_HERE'; // 재발급한 키 입력
 
 const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
 
@@ -659,7 +659,7 @@ const DB = {
   customStos: {},
   attendance: {},
   masteredProgs: {},  // { childId: [{code,name,masteredAt,note}] }
-  masteredPrograms: []  // [{code, name, childId, masteredAt, note}]   // { "2026-04-21": { "아동id": "출석"|"결석"|"보강"|"취소" } }
+  // masteredPrograms 구 구조 제거됨   // { "2026-04-21": { "아동id": "출석"|"결석"|"보강"|"취소" } }
 };
 // ── 로컬 저장 (항상 실행 — 오프라인 백업) ──
 function save() {
@@ -1772,31 +1772,6 @@ function moveLTO(idx, dir) {
 }
 
 // ════ 완수 과제 ════
-function markMastered(code, name) {
-  if (!S.child) return;
-  const note = prompt(`"${name}" 완수 메모 (선택):`,'') ?? '';
-  if (note === null) return; // 취소
-  const entry = {
-    id: 'ms_'+Date.now(),
-    code, name,
-    childId: S.child.id,
-    childName: S.child.name,
-    masteredAt: document.getElementById('sDate')?.value || new Date().toISOString().split('T')[0],
-    note: note.trim()
-  };
-  if (!DB.masteredPrograms) DB.masteredPrograms = [];
-  // 중복 방지
-  const exists = DB.masteredPrograms.find(m=>m.code===code&&m.childId===S.child.id);
-  if (exists) {
-    if (!confirm(`"${name}"은 이미 완수 목록에 있어요. 덮어쓸까요?`)) return;
-    Object.assign(exists, entry);
-  } else {
-    DB.masteredPrograms.push(entry);
-  }
-  save();
-  showToast(`✓ "${name}" 완수 과제로 저장됨`, 'ok');
-}
-
 function saveMemo() {
   if (!S.current || !S.board[S.current]) return;
   const p = S.board[S.current];
@@ -3001,7 +2976,8 @@ function renderHist() {
   // 완수 과제 렌더
   const ms = document.getElementById('masteredSection');
   if (ms && S.child) {
-    const mastered = (DB.masteredPrograms||[]).filter(m=>m.childId===S.child.id);
+    const childId = S.child.id;
+    const mastered = (DB.masteredProgs[childId]||[]);
     ms.innerHTML = mastered.length ? `<div class="cc">
       <div class="cc-t"><span style="color:var(--green)">✓</span> 완수 과제 (${mastered.length}개)</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;padding:6px 0">
@@ -3064,8 +3040,10 @@ function renderHist() {
 async function generateDailyNote() {
   if (!S.child) { showToast('아동을 선택해주세요','err'); return; }
   const dateStr = document.getElementById('sDate')?.value || new Date().toISOString().split('T')[0];
-  const sess = (DB.sessionArchive[dateStr]||[]).find(s=>s.childId===S.child.id);
-  if (!sess?.programs?.length) { showToast('오늘 세션 기록이 없습니다','err'); return; }
+  // sessionArchive + sessions 모두 확인
+  const allSess = [...(DB.sessionArchive[dateStr]||[]), ...DB.sessions.filter(s=>s.date===dateStr)];
+  const sess = allSess.find(s=>s.childId===S.child.id && s.programs?.length);
+  if (!sess) { showToast('오늘 세션 기록이 없습니다. 저장 후 다시 시도해주세요','err'); return; }
 
   const panel = document.getElementById('dailyNotePanel');
   const textarea = document.getElementById('dailyNoteText');
@@ -3146,11 +3124,7 @@ function deleteDailyNote(childId, idx) {
 }
 
 // 히스토리에서 LTO 이름 수정
-function removeMastered(id) {
-  DB.masteredPrograms = (DB.masteredPrograms||[]).filter(m=>m.id!==id);
-  save(); renderHist();
-  showToast('완수 과제 제거됨');
-}
+
 
 function editHistLTO(sessId, progIdx) {
   // 세션 찾기 (sessionArchive + sessions)
