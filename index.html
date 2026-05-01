@@ -409,6 +409,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 <div id="p-hist" class="hidden fade-in">
   <div class="topbar"><div class="topbar-title">세션 히스토리</div></div>
   <div class="content">
+    <div id="masteredSection" style="margin-bottom:12px"></div>
     <div class="cc">
       <table class="ht">
         <thead><tr><th>날짜</th><th>프로그램</th><th>STO</th><th>시도</th><th>정반응률</th><th>치료사</th></tr></thead>
@@ -568,7 +569,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 // ════ Supabase 설정 ════
 // 아래 두 값을 본인 Supabase 프로젝트의 값으로 교체하세요
 const SUPA_URL = 'https://fkjjbgontwvznouxsmjl.supabase.co';
-const SUPA_KEY = 'sb_publishable_dz-n82-UGp6VqF2tDm9W7Q_4x-uwdmG'; // 재발급한 키 입력
+const SUPA_KEY = 'YOUR_PUBLISHABLE_KEY_HERE'; // 재발급한 키 입력
 
 const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
 
@@ -596,7 +597,8 @@ const DB = {
   sessionArchive: {},
   customPrograms: [],
   customStos: {},
-  attendance: {}   // { "2026-04-21": { "아동id": "출석"|"결석"|"보강"|"취소" } }
+  attendance: {},
+  masteredPrograms: []  // [{code, name, childId, masteredAt, note}]   // { "2026-04-21": { "아동id": "출석"|"결석"|"보강"|"취소" } }
 };
 // ── 로컬 저장 (항상 실행 — 오프라인 백업) ──
 function save() {
@@ -1637,6 +1639,32 @@ function moveLTO(idx, dir) {
   save(); saveAppDataToCloud(); renderProgListCustom();
 }
 
+// ════ 완수 과제 ════
+function markMastered(code, name) {
+  if (!S.child) return;
+  const note = prompt(`"${name}" 완수 메모 (선택):`,'') ?? '';
+  if (note === null) return; // 취소
+  const entry = {
+    id: 'ms_'+Date.now(),
+    code, name,
+    childId: S.child.id,
+    childName: S.child.name,
+    masteredAt: document.getElementById('sDate')?.value || new Date().toISOString().split('T')[0],
+    note: note.trim()
+  };
+  if (!DB.masteredPrograms) DB.masteredPrograms = [];
+  // 중복 방지
+  const exists = DB.masteredPrograms.find(m=>m.code===code&&m.childId===S.child.id);
+  if (exists) {
+    if (!confirm(`"${name}"은 이미 완수 목록에 있어요. 덮어쓸까요?`)) return;
+    Object.assign(exists, entry);
+  } else {
+    DB.masteredPrograms.push(entry);
+  }
+  save();
+  showToast(`✓ "${name}" 완수 과제로 저장됨`, 'ok');
+}
+
 function saveMemo() {
   if (!S.current || !S.board[S.current]) return;
   const p = S.board[S.current];
@@ -1827,7 +1855,8 @@ function renderRecPanel() {
       <!-- 조작 버튼 -->
       <div class="rec-sum">
         <span>${[...curSto.trials,...(curSto.blocks||[]).flat()].filter(t=>t).length}회 기록</span>
-        <button class="btn btn-ghost btn-sm" style="margin-left:auto;padding:2px 8px;font-size:10px" onclick="undoLast()" title="마지막 입력 취소">↩ 실행취소</button>
+        <button class="btn btn-ghost btn-sm" style="padding:2px 8px;font-size:10px;color:var(--green);border-color:rgba(52,212,138,.4)" onclick="markMastered('${p.code}','${p.name.replace(/'/g,"\\'")}')" title="완수 과제로 저장">✓ 완수</button>
+      <button class="btn btn-ghost btn-sm" style="margin-left:auto;padding:2px 8px;font-size:10px" onclick="undoLast()" title="마지막 입력 취소">↩ 실행취소</button>
         <button class="btn btn-ghost btn-sm" style="padding:2px 8px;font-size:10px" onclick="clearCur()">초기화</button>
       </div>
     </div>
@@ -2077,8 +2106,12 @@ function showArchiveForDate() {
           <div style="font-size:12px;color:var(--text)">${progSummary||'프로그램 없음'}</div>
           <div style="font-size:10px;color:var(--text3)">${sess.therapist||''} · ${sess.duration||''}분 · 저장 ${savedAt}</div>
         </div>
-        <button class="btn btn-ghost btn-sm" style="padding:3px 9px;font-size:11px"
-          onclick="loadSessionFromArchive('${sess.id}','${dateStr}')">불러오기</button>
+        <div style="display:flex;gap:4px">
+          <button class="btn btn-ghost btn-sm" style="padding:3px 9px;font-size:11px"
+            onclick="loadSessionFromArchive('${sess.id}','${dateStr}')">불러오기</button>
+          <button class="btn btn-danger btn-sm" style="padding:3px 7px;font-size:11px"
+            onclick="deleteSessionRecord('${sess.id}','${dateStr}')" title="이 기록 삭제">🗑</button>
+        </div>
       </div>`;
     }).join('');
   }
@@ -2086,6 +2119,23 @@ function showArchiveForDate() {
 }
 
 // 아카이브에서 세션 불러오기 (보드에 적재 + 덮어쓰기 모드)
+function deleteSessionRecord(sessId, dateStr) {
+  if (!confirm('이 날짜 기록을 삭제할까요?\n(복구 불가)')) return;
+  if (DB.sessionArchive[dateStr]) {
+    DB.sessionArchive[dateStr] = DB.sessionArchive[dateStr].filter(s=>s.id!==sessId);
+    if (!DB.sessionArchive[dateStr].length) delete DB.sessionArchive[dateStr];
+  }
+  DB.sessions = DB.sessions.filter(s=>s.id!==sessId);
+  // 현재 편집 중인 세션이면 보드 초기화
+  if (S.editingSessionId===sessId) {
+    S.editingSessionId=null; S.board={}; S.current=null;
+    renderTabs(); renderRecPanel();
+  }
+  save();
+  showArchiveForDate();
+  showToast('기록 삭제됨','ok');
+}
+
 function loadSessionFromArchive(sessId, dateStr) {
   const archive = DB.sessionArchive[dateStr]||[];
   const sess = archive.find(s=>s.id===sessId);
@@ -2112,7 +2162,9 @@ function loadSessionFromArchive(sessId, dateStr) {
       stos: (p.stos||[]).map(s=>({
         name: s.name||s,
         trials: [...(s.trials||[])],
-        blocks: (s.blocks||[]).map(b=>[...b])
+        blocks: (s.blocks||[]).map(b=>[...b]),
+        memo: s.memo||'',
+        taskMemo: s.taskMemo||''
       })),
       currentSto: 0, memo: p.memo||''
     };
@@ -2185,7 +2237,7 @@ function buildSessionData() {
   if (!S.child) return null;
   const dateStr = document.getElementById('sDate')?.value;
   const progs = Object.values(S.board);
-  if (!progs.length) return null;  // 프로그램이 하나도 없으면 스킵
+  if (!progs.length) return null;  // 프로그램이 하나도 없으면 스킵 (saveSess에서 별도 처리)
 
   return {
     id: S.editingSessionId || ('s_' + S.child.id + '_' + (document.getElementById('sDate')?.value||'').replace(/-/g,'')),
@@ -2739,7 +2791,25 @@ function dc(id){if(S.charts[id]){S.charts[id].destroy();delete S.charts[id];}}
 // ════ 히스토리 ════
 function renderHist() {
   const b=document.getElementById('histBody');
-  if(!S.child){b.innerHTML='<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text3)">아동을 선택해주세요</td></tr>';return;}
+
+  // 완수 과제 렌더
+  const ms = document.getElementById('masteredSection');
+  if (ms && S.child) {
+    const mastered = (DB.masteredPrograms||[]).filter(m=>m.childId===S.child.id);
+    ms.innerHTML = mastered.length ? `<div class="cc">
+      <div class="cc-t"><span style="color:var(--green)">✓</span> 완수 과제 (${mastered.length}개)</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;padding:6px 0">
+        ${mastered.map(m=>`<div style="background:rgba(52,212,138,.1);border:1px solid rgba(52,212,138,.3);border-radius:8px;padding:6px 10px;font-size:11px">
+          <div style="font-weight:600;color:var(--text)">${m.code} ${m.name}</div>
+          <div style="color:var(--text3);margin-top:2px">${m.masteredAt}${m.note?' · '+m.note:''}</div>
+          <button onclick="removeMastered('${m.id}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:10px">× 제거</button>
+        </div>`).join('')}
+      </div></div>` : '';
+  } else if (ms) ms.innerHTML='';
+
+  if(!S.child){b.innerHTML='<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text3)">아동을 선택해주세요</td></tr>';
+    const ms=document.getElementById('masteredSection'); if(ms) ms.innerHTML=''; return;}
+
   // sessionArchive 우선, 없으면 sessions 배열
   // sessionArchive 키 정규화 (날짜 포맷 통일)
   const allArchive = Object.values(DB.sessionArchive).flat();
@@ -2767,6 +2837,12 @@ function renderHist() {
 }
 
 // 히스토리에서 LTO 이름 수정
+function removeMastered(id) {
+  DB.masteredPrograms = (DB.masteredPrograms||[]).filter(m=>m.id!==id);
+  save(); renderHist();
+  showToast('완수 과제 제거됨');
+}
+
 function editHistLTO(sessId, progIdx) {
   // 세션 찾기 (sessionArchive + sessions)
   let sess = null, dateKey = null;
