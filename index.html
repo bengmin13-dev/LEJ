@@ -516,33 +516,68 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <div class="fg">
       <label>수업 요일 및 시간</label>
       <div style="display:flex;flex-direction:column;gap:6px;margin-top:6px" id="nc-days">
-        <div style="display:flex;align-items:center;gap:8px;font-size:12px">
-          <label style="display:flex;align-items:center;gap:4px;width:32px;cursor:pointer"><input type="checkbox" value="월" class="day-chk" style="accent-color:var(--accent)"> 월</label>
-          <input type="text" class="day-time" placeholder="--:--" style="width:70px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 8px;font-size:11px;font-family:var(--font);outline:none" data-day="월">
+        <div style="display:flex;align-items:center;gap:6px;font-size:12px">
+          <label style="display:flex;align-items:center;gap:4px;width:28px;cursor:pointer"><input type="checkbox" value="월" class="day-chk" style="accent-color:var(--accent)"> 월</label>
+          <input type="text" class="day-time" placeholder="--:--" style="width:64px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 7px;font-size:11px;font-family:var(--font);outline:none" data-day="월">
+          <select class="day-dur" data-day="월" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 6px;font-size:11px;font-family:var(--font);outline:none">
+            <option value="50">50분</option>
+            <option value="60">60분</option>
+            <option value="90">90분</option>
+          </select>
         </div>
-        <div style="display:flex;align-items:center;gap:8px;font-size:12px">
-          <label style="display:flex;align-items:center;gap:4px;width:32px;cursor:pointer"><input type="checkbox" value="화" class="day-chk" style="accent-color:var(--accent)"> 화</label>
-          <input type="text" class="day-time" placeholder="--:--" style="width:70px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 8px;font-size:11px;font-family:var(--font);outline:none" data-day="화">
+        <div style="display:flex;align-items:center;gap:6px;font-size:12px">
+          <label style="display:flex;align-items:center;gap:4px;width:28px;cursor:pointer"><input type="checkbox" value="화" class="day-chk" style="accent-color:var(--accent)"> 화</label>
+          <input type="text" class="day-time" placeholder="--:--" style="width:64px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 7px;font-size:11px;font-family:var(--font);outline:none" data-day="화">
+          <select class="day-dur" data-day="화" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 6px;font-size:11px;font-family:var(--font);outline:none">
+            <option value="50">50분</option>
+            <option value="60">60분</option>
+            <option value="90">90분</option>
+          </select>
         </div>
-        <div style="display:flex;align-items:center;gap:8px;font-size:12px">
-          <label style="display:flex;align-items:center;gap:4px;width:32px;cursor:pointer"><input type="checkbox" value="수" class="day-chk" style="accent-color:var(--accent)"> 수</label>
-          <input type="text" class="day-time" placeholder="--:--" style="width:70px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 8px;font-size:11px;font-family:var(--font);outline:none" data-day="수">
+        <div style="display:flex;align-items:center;gap:6px;font-size:12px">
+          <label style="display:flex;align-items:center;gap:4px;width:28px;cursor:pointer"><input type="checkbox" value="수" class="day-chk" style="accent-color:var(--accent)"> 수</label>
+          <input type="text" class="day-time" placeholder="--:--" style="width:64px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 7px;font-size:11px;font-family:var(--font);outline:none" data-day="수">
+          <select class="day-dur" data-day="수" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 6px;font-size:11px;font-family:var(--font);outline:none">
+            <option value="50">50분</option>
+            <option value="60">60분</option>
+            <option value="90">90분</option>
+          </select>
         </div>
-        <div style="display:flex;align-items:center;gap:8px;font-size:12px">
-          <label style="display:flex;align-items:center;gap:4px;width:32px;cursor:pointer"><input type="checkbox" value="목" class="day-chk" style="accent-color:var(--accent)"> 목</label>
-          <input type="text" class="day-time" placeholder="--:--" style="width:70px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 8px;font-size:11px;font-family:var(--font);outline:none" data-day="목">
+        <div style="display:flex;align-items:center;gap:6px;font-size:12px">
+          <label style="display:flex;align-items:center;gap:4px;width:28px;cursor:pointer"><input type="checkbox" value="목" class="day-chk" style="accent-color:var(--accent)"> 목</label>
+          <input type="text" class="day-time" placeholder="--:--" style="width:64px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 7px;font-size:11px;font-family:var(--font);outline:none" data-day="목">
+          <select class="day-dur" data-day="목" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 6px;font-size:11px;font-family:var(--font);outline:none">
+            <option value="50">50분</option>
+            <option value="60">60분</option>
+            <option value="90">90분</option>
+          </select>
         </div>
-        <div style="display:flex;align-items:center;gap:8px;font-size:12px">
-          <label style="display:flex;align-items:center;gap:4px;width:32px;cursor:pointer"><input type="checkbox" value="금" class="day-chk" style="accent-color:var(--accent)"> 금</label>
-          <input type="text" class="day-time" placeholder="--:--" style="width:70px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 8px;font-size:11px;font-family:var(--font);outline:none" data-day="금">
+        <div style="display:flex;align-items:center;gap:6px;font-size:12px">
+          <label style="display:flex;align-items:center;gap:4px;width:28px;cursor:pointer"><input type="checkbox" value="금" class="day-chk" style="accent-color:var(--accent)"> 금</label>
+          <input type="text" class="day-time" placeholder="--:--" style="width:64px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 7px;font-size:11px;font-family:var(--font);outline:none" data-day="금">
+          <select class="day-dur" data-day="금" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 6px;font-size:11px;font-family:var(--font);outline:none">
+            <option value="50">50분</option>
+            <option value="60">60분</option>
+            <option value="90">90분</option>
+          </select>
         </div>
-        <div style="display:flex;align-items:center;gap:8px;font-size:12px">
-          <label style="display:flex;align-items:center;gap:4px;width:32px;cursor:pointer"><input type="checkbox" value="토" class="day-chk" style="accent-color:var(--accent)"> 토</label>
-          <input type="text" class="day-time" placeholder="--:--" style="width:70px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 8px;font-size:11px;font-family:var(--font);outline:none" data-day="토">
+        <div style="display:flex;align-items:center;gap:6px;font-size:12px">
+          <label style="display:flex;align-items:center;gap:4px;width:28px;cursor:pointer"><input type="checkbox" value="토" class="day-chk" style="accent-color:var(--accent)"> 토</label>
+          <input type="text" class="day-time" placeholder="--:--" style="width:64px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 7px;font-size:11px;font-family:var(--font);outline:none" data-day="토">
+          <select class="day-dur" data-day="토" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 6px;font-size:11px;font-family:var(--font);outline:none">
+            <option value="50">50분</option>
+            <option value="60">60분</option>
+            <option value="90">90분</option>
+          </select>
         </div>
-        <div style="display:flex;align-items:center;gap:8px;font-size:12px">
-          <label style="display:flex;align-items:center;gap:4px;width:32px;cursor:pointer"><input type="checkbox" value="일" class="day-chk" style="accent-color:var(--accent)"> 일</label>
-          <input type="text" class="day-time" placeholder="--:--" style="width:70px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 8px;font-size:11px;font-family:var(--font);outline:none" data-day="일">
+        <div style="display:flex;align-items:center;gap:6px;font-size:12px">
+          <label style="display:flex;align-items:center;gap:4px;width:28px;cursor:pointer"><input type="checkbox" value="일" class="day-chk" style="accent-color:var(--accent)"> 일</label>
+          <input type="text" class="day-time" placeholder="--:--" style="width:64px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 7px;font-size:11px;font-family:var(--font);outline:none" data-day="일">
+          <select class="day-dur" data-day="일" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 6px;font-size:11px;font-family:var(--font);outline:none">
+            <option value="50">50분</option>
+            <option value="60">60분</option>
+            <option value="90">90분</option>
+          </select>
         </div>
       </div>
     </div>
@@ -580,7 +615,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 // ════ Supabase 설정 ════
 // 아래 두 값을 본인 Supabase 프로젝트의 값으로 교체하세요
 const SUPA_URL = 'https://fkjjbgontwvznouxsmjl.supabase.co';
-const SUPA_KEY = 'sb_publishable_dz-n82-UGp6VqF2tDm9W7Q_4x-uwdmG'; // 재발급한 키 입력
+const SUPA_KEY = 'YOUR_PUBLISHABLE_KEY_HERE'; // 재발급한 키 입력
 
 const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
 
@@ -783,7 +818,8 @@ async function saveAppDataToCloud() {
     const appData = {
       customPrograms: DB.customPrograms || [],
       customStos: DB.customStos || {},
-      masteredProgs: DB.masteredProgs || {}
+      masteredProgs: DB.masteredProgs || {},
+      dailyNotes: DB.dailyNotes || {}
     };
     const { error } = await supa.from('app_settings').upsert({
       key: 'app_data',
@@ -810,8 +846,21 @@ async function loadAppDataFromCloud() {
     if (appData?.customStos && Object.keys(appData.customStos).length) {
       DB.customStos = { ...(DB.customStos||{}), ...appData.customStos };
     }
+    if (appData?.dailyNotes) {
+      DB.dailyNotes = { ...(DB.dailyNotes||{}), ...appData.dailyNotes };
+    }
     if (appData?.masteredProgs) {
-      DB.masteredProgs = { ...(DB.masteredProgs||{}), ...appData.masteredProgs };
+      // 기존 로컬 데이터와 병합 (클라우드 우선, 로컬 추가분 유지)
+      const merged = { ...(DB.masteredProgs||{}) };
+      Object.entries(appData.masteredProgs).forEach(([childId, list]) => {
+        if (!merged[childId]) merged[childId] = list;
+        else {
+          // 중복 제거: masteredAt+code 기준
+          const existing = new Set(merged[childId].map(m=>m.code+'_'+m.masteredAt));
+          list.forEach(m => { if (!existing.has(m.code+'_'+m.masteredAt)) merged[childId].push(m); });
+        }
+      });
+      DB.masteredProgs = merged;
     }
     save();
     console.log('앱 데이터 로드 완료 (개별과제:', DB.customPrograms?.length, '개)');
@@ -2385,7 +2434,9 @@ async function saveSess() {
         return;
       }
     } else {
-      showToast('추가된 프로그램이 없습니다','err'); return;
+      // 기존 기록 없어도 빈 상태로 저장 허용
+      if (!confirm('프로그램이 없습니다. 빈 상태로 저장할까요?')) return;
+      S.editingSessionId = S.editingSessionId || ('s_' + S.child.id + '_' + document.getElementById('sDate').value.replace(/-/g,''));
     }
   }
   const dateStr = document.getElementById('sDate').value;
@@ -2977,6 +3028,91 @@ function renderHist() {
   }))).filter(Boolean).join('');
 }
 
+// ════ 오늘 일지 생성 (Claude API) ════
+async function generateDailyNote() {
+  if (!S.child) { showToast('아동을 선택해주세요','err'); return; }
+  const dateStr = document.getElementById('sDate')?.value || new Date().toISOString().split('T')[0];
+  const sess = (DB.sessionArchive[dateStr]||[]).find(s=>s.childId===S.child.id);
+  if (!sess?.programs?.length) { showToast('오늘 세션 기록이 없습니다','err'); return; }
+
+  const panel = document.getElementById('dailyNotePanel');
+  const textarea = document.getElementById('dailyNoteText');
+  const dateLabel = document.getElementById('dailyNoteDate');
+  panel.classList.remove('hidden');
+  textarea.value = '일지 생성 중...';
+  dateLabel.textContent = dateStr + ' · ' + S.child.name;
+
+  const NL = String.fromCharCode(10);
+  const rows = [];
+  sess.programs.forEach(function(p) {
+    rows.push('프로그램: ' + p.name + ' (' + p.code + ')');
+    (p.stos||[]).forEach(function(s) {
+      const trials = [].concat(s.trials||[]).concat((s.blocks||[]).reduce(function(a,b){return a.concat(b)},[])).filter(function(t){return t;});
+      if (!trials.length) return;
+      const plus = trials.filter(function(t){return t==='+'}).length;
+      const pct = Math.round(plus/trials.length*100);
+      let line = '  STO: ' + s.name + ' ' + pct + '% (' + plus + '/' + trials.length + ')';
+      if (s.memo) line += ' [메모: ' + s.memo + ']';
+      if (s.taskMemo) line += ' [SD: ' + s.taskMemo + ']';
+      rows.push(line);
+    });
+  });
+  const summary = rows.join(NL);
+  const sessionNote = sess.note || '없음';
+  const promptText = ['다음은 ABA 치료 세션 기록입니다. 아동의 개인정보(이름, 나이 등)는 포함하지 말고,',
+    '오늘 수업에서 보여준 수행과 특이사항을 부모님께 설명하는 간단한 일지를 5줄 이내로 작성해주세요.',
+    '전문 용어보다 쉬운 말로, 긍정적이고 구체적으로 써주세요.',
+    '', '세션 날짜: ' + dateStr, '세션 메모: ' + sessionNote, '', '수행 기록:', summary
+  ].join(NL);
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: promptText }]
+      })
+    });
+    const data = await res.json();
+    textarea.value = (data.content&&data.content[0]&&data.content[0].text) || '일지 생성에 실패했습니다.';
+  } catch(e) {
+    textarea.value = '일지 생성 중 오류가 발생했습니다.';
+    console.error(e);
+  }
+}
+
+
+function saveDailyNote() {
+  if (!S.child) return;
+  const text = document.getElementById('dailyNoteText')?.value?.trim();
+  if (!text || text === '일지 생성 중...') { showToast('저장할 일지가 없습니다','err'); return; }
+  const dateStr = document.getElementById('sDate')?.value || new Date().toISOString().split('T')[0];
+  const childId = S.child.id;
+
+  if (!DB.dailyNotes[childId]) DB.dailyNotes[childId] = [];
+  // 같은 날짜면 덮어쓰기
+  const idx = DB.dailyNotes[childId].findIndex(n=>n.date===dateStr);
+  const entry = { date: dateStr, text, createdAt: new Date().toISOString() };
+  if (idx !== -1) DB.dailyNotes[childId][idx] = entry;
+  else DB.dailyNotes[childId].push(entry);
+
+  save();
+  saveAppDataToCloud();
+  document.getElementById('dailyNotePanel').classList.add('hidden');
+  renderHist(); // 히스토리에 반영
+  showToast('일지 저장됨 ✅','ok');
+}
+
+function deleteDailyNote(childId, idx) {
+  if (!confirm('이 일지를 삭제할까요?')) return;
+  (DB.dailyNotes[childId]||[]).splice(idx,1);
+  save(); saveAppDataToCloud();
+  renderHist();
+  showToast('일지 삭제됨');
+}
+
 // 히스토리에서 LTO 이름 수정
 function removeMastered(id) {
   DB.masteredPrograms = (DB.masteredPrograms||[]).filter(m=>m.id!==id);
@@ -3110,6 +3246,8 @@ function openEditChild(id) {
     el.checked = !!(sched || legacy);
     const timeEl = document.querySelector(`#nc-days .day-time[data-day="${el.value}"]`);
     if (timeEl) timeEl.value = sched?.time || '';
+    const durEl = document.querySelector(`#nc-days .day-dur[data-day="${el.value}"]`);
+    if (durEl && sched?.duration) durEl.value = sched.duration;
   });
   document.getElementById('nc-note').value=c.note||'';
   document.getElementById('childModal').classList.add('open');
@@ -3128,7 +3266,8 @@ async function saveChild() {
     sessionDur:document.getElementById('nc-dur')?.value||'40',
     schedule: [...document.querySelectorAll('#nc-days .day-chk:checked')].map(el=>({
       day: el.value,
-      time: document.querySelector(`#nc-days .day-time[data-day="${el.value}"]`)?.value||''
+      time: document.querySelector(`#nc-days .day-time[data-day="${el.value}"]`)?.value||'',
+      duration: document.querySelector(`#nc-days .day-dur[data-day="${el.value}"]`)?.value||'50'
     })),
     scheduleDays:[...document.querySelectorAll('#nc-days .day-chk:checked')].map(el=>el.value),
     note:document.getElementById('nc-note').value
