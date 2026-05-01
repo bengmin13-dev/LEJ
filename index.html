@@ -468,6 +468,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
       <button class="btn btn-ghost btn-sm" onclick="calPrev()">◀</button>
       <span id="calTitle" style="font-size:13px;font-weight:500;min-width:100px;text-align:center"></span>
       <button class="btn btn-ghost btn-sm" onclick="calNext()">▶</button>
+      <button class="btn btn-ghost btn-sm" onclick="openAddCalEvent()">+ 일정</button>
     </div>
   </div>
   <div class="content">
@@ -477,6 +478,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     </div>
     <div id="calGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px"></div>
     <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;font-size:11px" id="calLegend"></div>
+    <div style="margin-top:10px;display:flex;gap:6px;align-items:center">
+      <input type="date" id="evtDate" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:4px 8px;font-size:11px;font-family:var(--font);outline:none">
+      <input type="text" id="evtTitle" placeholder="일정 제목 입력..." style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:4px 8px;font-size:11px;font-family:var(--font);outline:none">
+      <button class="btn btn-primary btn-sm" onclick="addCalEvent()">+ 일정 추가</button>
+    </div>
   </div>
 </div>
 
@@ -487,6 +493,19 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   </div>
   <div class="content">
     <div id="masteredList"></div>
+  </div>
+</div>
+
+<!-- ══ 캘린더 일정 추가 모달 ══ -->
+<div class="ov" id="calEventModal">
+  <div class="modal" style="max-width:340px">
+    <div class="mh"><h3>일정 추가</h3><button class="mx" onclick="closeModal('calEventModal')">×</button></div>
+    <div class="fg"><label>날짜</label><input type="date" id="calEventDate"></div>
+    <div class="fg"><label>내용</label><input type="text" id="calEventTitle" placeholder="예: 평가, 보강, 휴강..."></div>
+    <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:14px">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('calEventModal')">취소</button>
+      <button class="btn btn-primary btn-sm" onclick="saveCalEvent()">추가</button>
+    </div>
   </div>
 </div>
 
@@ -662,7 +681,8 @@ const DB = {
   customStos: {},
   attendance: {},
   masteredProgs: {},  // { childId: [{code,name,masteredAt,note}] }
-  // masteredPrograms 구 구조 제거됨   // { "2026-04-21": { "아동id": "출석"|"결석"|"보강"|"취소" } }
+  dailyNotes: {},    // { childId: [{date, text, createdAt}] }
+  calEvents: []      // [{id, date, title, color}]
 };
 // ── 로컬 저장 (항상 실행 — 오프라인 백업) ──
 function save() {
@@ -3366,9 +3386,8 @@ function go(page) {
   S.page=page;
   if(page==='graph')renderG();
   if(page==='hist'){
-    // 날짜 선택기 초기화
     const nd = document.getElementById('noteTargetDate');
-    if (nd && !nd.value) nd.value = new Date().toISOString().split('T')[0];
+    if (nd) nd.value = new Date().toISOString().split('T')[0];
     if(IS_ONLINE && S.child){
       loadAllSessionsFromCloud(S.child.id).then(()=>renderHist());
     } else {
@@ -3409,125 +3428,109 @@ function renderWeekCalendar(grid, legend, title) {
   const kidColors = {};
   kids.forEach((k,i)=>{ kidColors[k.id]=CAL_COLORS[i%CAL_COLORS.length]; });
 
-  // 이번 주 월요일 기준
   const now = new Date();
   const mon = new Date(now);
   const dayOfWeek = now.getDay();
-  const diffToMon = dayOfWeek===0 ? -6 : 1-dayOfWeek;
-  mon.setDate(now.getDate() + diffToMon + calWeekOffset*7);
+  mon.setDate(now.getDate() + (dayOfWeek===0?-6:1-dayOfWeek) + calWeekOffset*7);
 
-  // 월~토 6일
-  const weekDays = Array.from({length:6},(_,i)=>{
-    const d = new Date(mon); d.setDate(mon.getDate()+i); return d;
-  });
-
+  const weekDays = Array.from({length:6},(_,i)=>{ const d=new Date(mon); d.setDate(mon.getDate()+i); return d; });
   const todayStr = now.toISOString().split('T')[0];
-  title.textContent = `${weekDays[0].getMonth()+1}/${weekDays[0].getDate()} – ${weekDays[5].getMonth()+1}/${weekDays[5].getDate()}`;
+  title.textContent = (weekDays[0].getMonth()+1)+'/'+weekDays[0].getDate()+' – '+(weekDays[5].getMonth()+1)+'/'+weekDays[5].getDate();
 
-  // 타임 슬롯: 10:00 ~ 18:30, 30분 단위
-  const START_H = 10, END_H = 18, END_M = 30;
-  const slots = [];
-  for(let h=START_H; h<=END_H; h++) {
-    for(let m=0; m<60; m+=30) {
-      if(h===END_H && m>END_M) break;
-      slots.push({h, m, label:`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`});
-    }
-  }
-  const totalSlots = slots.length;
+  // 타임 슬롯 09:00~19:00, 30분 단위
+  const START_H=9, END_H=19;
+  const slots=[];
+  for(let h=START_H;h<END_H;h++) { slots.push({h,m:0}); slots.push({h,m:30}); }
+  const SLOT_PX = 32; // 슬롯 하나 높이(px)
 
-  // 헤더 행 (시간 + 요일)
-  const DOW_SHORT = ['월','화','수','목','금','토'];
-  let html = `<div style="display:grid;grid-template-columns:48px repeat(6,1fr);gap:0;border:1px solid var(--border);border-radius:8px;overflow:hidden;font-size:11px">`;
+  const DOW_SHORT=['월','화','수','목','금','토'];
+
+  // 2번: grid 스타일 초기화
+  grid.style.gridTemplateColumns = '1fr';
+  grid.style.display = 'block';
+  grid.style.gap = '0';
+
+  let html = '<div style="display:grid;grid-template-columns:48px repeat(6,1fr);border:1px solid var(--border);border-radius:8px;overflow:hidden;font-size:11px">';
 
   // 헤더
-  html += `<div style="background:var(--bg3);padding:6px 4px;text-align:center;border-bottom:1px solid var(--border);border-right:1px solid var(--border);color:var(--text3)">시간</div>`;
+  html += '<div style="background:var(--bg3);padding:6px 4px;text-align:center;border-bottom:1px solid var(--border);border-right:1px solid var(--border);color:var(--text3)">시간</div>';
   weekDays.forEach((d,i)=>{
-    const dow = DOW_SHORT[i];
-    const ds = d.toISOString().split('T')[0];
-    const isToday = ds===todayStr;
-    const isWeekend = i>=5;
-    html += `<div style="background:${isToday?'rgba(79,142,247,.12)':'var(--bg3)'};padding:6px 4px;text-align:center;border-bottom:1px solid var(--border);${i<5?'border-right:1px solid var(--border)':''};font-weight:${isToday?700:500};color:${isWeekend?'var(--red)':isToday?'var(--accent)':'var(--text2)'}">
-      ${dow} <span style="font-size:10px;color:var(--text3)">${d.getDate()}</span>
-    </div>`;
+    const dow=DOW_SHORT[i];
+    const ds=d.toISOString().split('T')[0];
+    const isToday=ds===todayStr, isWeekend=i===5;
+    html+='<div style="background:'+(isToday?'rgba(79,142,247,.12)':'var(--bg3)')+';padding:6px 4px;text-align:center;border-bottom:1px solid var(--border);'+(i<5?'border-right:1px solid var(--border);':'')+';font-weight:'+(isToday?700:500)+';color:'+(isWeekend?'var(--red)':isToday?'var(--accent)':'var(--text2)')+'">'+dow+' <span style="font-size:10px;color:var(--text3)">'+d.getDate()+'</span></div>';
   });
 
   // 슬롯 행
-  slots.forEach((slot, si) => {
-    const isHalfHour = slot.m === 30;
-    const rowBg = isHalfHour ? 'var(--bg)' : 'var(--bg2)';
-    const borderStyle = `border-bottom:1px solid ${isHalfHour?'var(--border)':'rgba(255,255,255,.04)'}`;
+  slots.forEach((slot,si)=>{
+    const isHalf=slot.m===30;
+    const rowBg=isHalf?'var(--bg)':'var(--bg2)';
+    const border='border-bottom:1px solid '+(isHalf?'var(--border)':'rgba(255,255,255,.04)');
+    const slotLabel=String(slot.h).padStart(2,'0')+':'+String(slot.m).padStart(2,'0');
+    html+='<div style="background:'+rowBg+';padding:2px 4px;text-align:right;'+border+';border-right:1px solid var(--border);color:var(--text3);font-size:10px;font-family:var(--mono);height:'+SLOT_PX+'px;box-sizing:border-box">'+slotLabel+'</div>';
 
-    // 시간 레이블
-    html += `<div style="background:${rowBg};padding:3px 4px;text-align:right;${borderStyle};border-right:1px solid var(--border);color:var(--text3);font-size:10px;font-family:var(--mono);white-space:nowrap">${slot.label}</div>`;
+    weekDays.forEach((d,di)=>{
+      const dow=DOW_SHORT[di];
+      const slotMin=slot.h*60+slot.m;
 
-    // 각 요일 셀
-    weekDays.forEach((d, di) => {
-      const dow = DOW_SHORT[di];
-      // 이 슬롯에 수업 있는 아동 찾기
-      const scheduled = kids.filter(k=>{
-        const sched = k.schedule?.find(s=>s.day===dow);
-        if (!sched?.time) return false;
-        const [sh, sm] = sched.time.split(':').map(Number);
-        return sh===slot.h && sm===slot.m;
+      // 이 슬롯에서 시작하는 수업 (3번: 정시 아닌 시간 처리 - 슬롯 범위 안에 시작 시간)
+      const starting=kids.filter(k=>{
+        const sched=k.schedule?.find(s=>s.day===dow);
+        if(!sched?.time) return false;
+        const [sh,sm]=sched.time.split(':').map(Number);
+        const startMin=sh*60+sm;
+        return startMin>=slotMin && startMin<slotMin+30;
       });
 
-      // 이 슬롯이 다른 수업의 중간인지 확인 (연속 블록)
-      const continuing = kids.filter(k=>{
-        const sched = k.schedule?.find(s=>s.day===dow);
-        if (!sched?.time) return false;
-        const [sh, sm] = sched.time.split(':').map(Number);
-        const startMin = sh*60+sm;
-        const dur = parseInt(k.sessionDur||'50');
-        const curMin = slot.h*60+slot.m;
-        return curMin > startMin && curMin < startMin+dur;
+      // 이 슬롯이 수업 중간인지
+      const ongoing=kids.filter(k=>{
+        const sched=k.schedule?.find(s=>s.day===dow);
+        if(!sched?.time) return false;
+        const [sh,sm]=sched.time.split(':').map(Number);
+        const startMin=sh*60+sm;
+        const dur=parseInt(sched.duration||k.sessionDur||'50');
+        return slotMin>startMin && slotMin<startMin+dur;
       });
 
-      let cellContent = '';
+      let content='';
 
-      // 시작 슬롯: 수업 이름 + 시간 표시, 높이는 참여시간 비율
-      scheduled.forEach(k=>{
-        const sched = k.schedule?.find(s=>s.day===dow);
-        const dur = parseInt(k.sessionDur||'50');
-        const fillPct = Math.min((dur/30)*100, 100); // 30분 슬롯 대비 %
-        const endH = Math.floor((slot.h*60+slot.m+dur)/60);
-        const endM = (slot.h*60+slot.m+dur)%60;
-        const endStr = String(endH).padStart(2,'0')+':'+String(endM).padStart(2,'0');
-        cellContent += `<div style="background:${kidColors[k.id]}33;border-left:3px solid ${kidColors[k.id]};border-radius:4px;padding:2px 5px;margin:1px 0;font-size:10px;line-height:1.4;height:${Math.min(fillPct,100)}%">
-          <div style="font-weight:600;color:var(--text)">${k.name}</div>
-          <div style="color:var(--text3)">${sched.time}~${endStr}</div>
-        </div>`;
+      starting.forEach(k=>{
+        const sched=k.schedule?.find(s=>s.day===dow);
+        const [sh,sm]=sched.time.split(':').map(Number);
+        const dur=parseInt(sched.duration||k.sessionDur||'50');
+        const startMin=sh*60+sm;
+        const endMin=startMin+dur;
+        const endH=Math.floor(endMin/60), endM=endMin%60;
+        const endStr=String(endH).padStart(2,'0')+':'+String(endM).padStart(2,'0');
+        // 시작 오프셋 (슬롯 내 위치)
+        const offsetPct=((startMin-slotMin)/30)*100;
+        content+='<div style="background:'+kidColors[k.id]+'33;border-left:3px solid '+kidColors[k.id]+';border-radius:4px;padding:2px 4px;font-size:10px;margin-top:'+offsetPct+'%;line-height:1.3">'
+          +'<div style="font-weight:600;color:var(--text)">'+k.name+'</div>'
+          +'<div style="color:var(--text3)">'+sched.time+'~'+endStr+'</div>'
+          +'</div>';
       });
 
-      // 연속 슬롯: 남은 비율만큼 색상 바만 표시
-      continuing.forEach(k=>{
-        const sched = k.schedule?.find(s=>s.day===dow);
-        const [sh, sm] = sched.time.split(':').map(Number);
-        const dur = parseInt(k.sessionDur||'50');
-        const startMin = sh*60+sm;
-        const curMin = slot.h*60+slot.m;
-        const elapsed = curMin - startMin;
-        const remaining = dur - elapsed;
-        const fillPct = Math.min((remaining/30)*100, 100);
-        cellContent += `<div style="background:${kidColors[k.id]}22;border-left:3px solid ${kidColors[k.id]};border-radius:0 4px 4px 0;height:${fillPct}%;min-height:4px"></div>`;
+      ongoing.forEach(k=>{
+        const sched=k.schedule?.find(s=>s.day===dow);
+        const [sh,sm]=sched.time.split(':').map(Number);
+        const dur=parseInt(sched.duration||k.sessionDur||'50');
+        const startMin=sh*60+sm;
+        const endMin=startMin+dur;
+        const remaining=Math.min(endMin-slotMin,30);
+        const fillPct=(remaining/30)*100;
+        content+='<div style="background:'+kidColors[k.id]+'22;border-left:3px solid '+kidColors[k.id]+';height:'+fillPct+'%;min-height:4px;border-radius:0 4px 4px 0"></div>';
       });
 
-      const isToday = d.toISOString().split('T')[0]===todayStr;
-      html += `<div style="background:${isToday?'rgba(79,142,247,.04)':rowBg};min-height:24px;padding:1px 3px;${borderStyle};${di<5?'border-right:1px solid var(--border)':''}">${cellContent}</div>`;
+      html+='<div style="background:'+(d.toISOString().split('T')[0]===todayStr?'rgba(79,142,247,.04)':rowBg)+';height:'+SLOT_PX+'px;box-sizing:border-box;padding:1px 3px;'+border+';'+(di<5?'border-right:1px solid var(--border)':'')+';position:relative;overflow:hidden">'+content+'</div>';
     });
   });
 
-  html += '</div>';
+  html+='</div>';
+  grid.innerHTML=html;
 
-  grid.style.gridTemplateColumns = '1fr';
-  grid.innerHTML = html;
-
-  // 범례
-  legend.innerHTML = kids.map((k,i)=>{
-    const schedStr = (k.schedule||[]).map(s=>`${s.day} ${s.time}`).join(' · ') || (k.scheduleDays||[]).join('·');
-    return `<span style="display:flex;align-items:center;gap:4px">
-      <span style="width:10px;height:10px;border-radius:50%;background:${kidColors[k.id]};display:inline-block"></span>
-      <span style="color:var(--text2)">${k.name} (${schedStr} · ${k.sessionDur||''}분)</span>
-    </span>`;
+  legend.innerHTML=kids.map((k,i)=>{
+    const schedStr=(k.schedule||[]).map(s=>s.day+' '+s.time+(s.duration?' '+s.duration+'분':'')).join(' · ')||(k.scheduleDays||[]).join('·');
+    return '<span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:50%;background:'+kidColors[k.id]+';display:inline-block"></span><span style="color:var(--text2)">'+k.name+' ('+schedStr+')</span></span>';
   }).join('');
 }
 
@@ -3543,6 +3546,26 @@ function calNext() {
   renderCalendar();
 }
 
+function openAddCalEvent() {
+  const modal = document.getElementById('calEventModal');
+  if (!modal) return;
+  document.getElementById('calEventDate').value = new Date().toISOString().split('T')[0];
+  document.getElementById('calEventTitle').value = '';
+  modal.classList.add('open');
+}
+
+function saveCalEvent() {
+  const date = document.getElementById('calEventDate').value;
+  const title = document.getElementById('calEventTitle').value.trim();
+  if (!date||!title) { showToast('날짜와 내용을 입력해주세요','err'); return; }
+  if (!DB.calEvents) DB.calEvents = [];
+  DB.calEvents.push({ id: 'ev'+Date.now(), date, title });
+  save();
+  closeModal('calEventModal');
+  renderCalendar();
+  showToast('일정 추가됨','ok');
+}
+
 function renderCalendar() {
   const grid = document.getElementById('calGrid');
   const legend = document.getElementById('calLegend');
@@ -3551,295 +3574,65 @@ function renderCalendar() {
 
   if (calView==='week') { renderWeekCalendar(grid, legend, title); return; }
 
-  title.textContent = `${calYear}년 ${calMonth+1}월`;
+  // 2번: 월간 뷰 grid 스타일 초기화
+  grid.style.gridTemplateColumns = 'repeat(7,1fr)';
+  grid.style.display = 'grid';
+  grid.style.gap = '2px';
+  title.textContent = calYear + '년 ' + (calMonth+1) + '월';
 
-  // 아동별 색상 + 일정
   const kids = DB.children.filter(k=>k.schedule?.length || k.scheduleDays?.length);
   const kidColors = {};
   kids.forEach((k,i)=>{ kidColors[k.id]=CAL_COLORS[i%CAL_COLORS.length]; });
 
-  // 헤더
-  const headers = DOW_KR.map(d=>`<div style="text-align:center;font-size:11px;color:var(--text3);padding:4px 0;font-weight:500">${d}</div>`).join('');
+  // 이니셜 추출
+  function getInitials(name) { return name ? name.slice(0,1) : '?'; }
 
-  // 날짜 셀
-  const firstDay = new Date(calYear, calMonth, 1).getDay();
-  const daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
+  const days = Array.from({length: new Date(calYear, calMonth+1, 0).getDate()}, (_,i)=>i+1);
   const today = new Date().toISOString().split('T')[0];
 
+  const headers = DOW_KR.map(d=>`<div style="text-align:center;font-size:11px;color:var(--text3);padding:4px 0;font-weight:500">${d}</div>`).join('');
+
+  const firstDay = new Date(calYear, calMonth, 1).getDay();
   let cells = Array(firstDay).fill('<div></div>').join('');
-  for(let d=1; d<=daysInMonth; d++) {
-    const dateStr = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+
+  days.forEach(d=>{
+    const dateStr = calYear+'-'+String(calMonth+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
     const dow = DOW_KR[new Date(calYear, calMonth, d).getDay()];
     const isToday = dateStr===today;
     const isWeekend = dow==='일'||dow==='토';
 
-    // 이 날 수업 있는 아동
+    // 아동 수업 (시간+이니셜)
     const scheduled = kids.filter(k=>{
-      const days = k.schedule?.map(s=>s.day) || k.scheduleDays || [];
-      return days.includes(dow);
+      const days2 = k.schedule?.map(s=>s.day) || k.scheduleDays || [];
+      return days2.includes(dow);
     });
-    const dots = scheduled.map(k=>{
+    const schedItems = scheduled.map(k=>{
       const sched = k.schedule?.find(s=>s.day===dow);
       const time = sched?.time || k.scheduleTime || '';
-      return `<div style="width:7px;height:7px;border-radius:50%;background:${kidColors[k.id]};display:inline-block;margin:1px" title="${k.name} ${time}"></div>`;
+      return '<div style="display:flex;align-items:center;gap:2px;margin-top:1px">'
+        +'<span style="width:6px;height:6px;border-radius:50%;background:'+kidColors[k.id]+';flex-shrink:0"></span>'
+        +'<span style="font-size:9px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'
+        +(time?time+' ':'')+getInitials(k.name)
+        +'</span></div>';
     }).join('');
 
-    cells += `<div style="min-height:52px;background:${isToday?'rgba(79,142,247,.15)':'var(--bg2)'};border-radius:6px;padding:4px;border:1px solid ${isToday?'var(--accent)':'var(--border)'};cursor:pointer" onclick="go('attend')">
-      <div style="font-size:11px;font-weight:${isToday?'700':'400'};color:${isWeekend?'var(--red)':isToday?'var(--accent)':'var(--text2)'};">${d}</div>
-      <div style="margin-top:2px">${dots}</div>
-    </div>`;
-  }
+    // 커스텀 일정
+    const evts = (DB.calEvents||[]).filter(e=>e.date===dateStr);
+    const evtItems = evts.map(e=>'<div style="font-size:9px;color:'+(e.color||'var(--amber)')+';margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">● '+e.title+'</div>').join('');
+
+    cells += '<div style="min-height:58px;background:'+(isToday?'rgba(79,142,247,.15)':'var(--bg2)')+';border-radius:6px;padding:4px;border:1px solid '+(isToday?'var(--accent)':'var(--border)')+';">'
+      +'<div style="font-size:11px;font-weight:'+(isToday?'700':'400')+';color:'+(isWeekend?'var(--red)':isToday?'var(--accent)':'var(--text2)')+'">'+d+'</div>'
+      +schedItems+evtItems
+      +'</div>';
+  });
 
   grid.innerHTML = headers + cells;
 
-  // 범례
   legend.innerHTML = kids.map((k,i)=>{
-    const schedStr = (k.schedule||[]).map(s=>`${s.day} ${s.time}`).join(' · ')
-      || (k.scheduleDays||[]).join('·');
-    return `<span style="display:flex;align-items:center;gap:4px">
-      <span style="width:10px;height:10px;border-radius:50%;background:${kidColors[k.id]};display:inline-block"></span>
-      <span style="color:var(--text2)">${k.name} (${schedStr} · ${k.sessionDur||''}분)</span>
-    </span>`;
+    const schedStr = (k.schedule||[]).map(s=>s.day+' '+s.time).join(' · ') || (k.scheduleDays||[]).join('·');
+    return '<span style="display:flex;align-items:center;gap:4px">'
+      +'<span style="width:10px;height:10px;border-radius:50%;background:'+kidColors[k.id]+';display:inline-block"></span>'
+      +'<span style="color:var(--text2)">'+k.name+' ('+schedStr+')</span>'
+      +'</span>';
   }).join('');
 }
-
-// ════ 출결 관리 ════
-
-// 아동 코드 생성 (이름 없이 순번 코드)
-function childCode(idx) {
-  // 출결 기록용: 아동 이름 사용 (엑셀 내보내기 시에도 이름 사용)
-  return DB.children[idx]?.name || ('아동' + String.fromCharCode(65 + idx));
-}
-
-function initAttend() {
-  const sel = document.getElementById('attendMonth');
-  if (!sel) return;
-  // 최근 6개월 옵션 생성
-  const now = new Date();
-  sel.innerHTML = '';
-  for (let i = 0; i < 6; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const val = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-    const label = `${d.getFullYear()}년 ${d.getMonth()+1}월`;
-    sel.innerHTML += `<option value="${val}"${i===0?' selected':''}>${label}</option>`;
-  }
-  renderAttend();
-}
-
-function renderAttend() {
-  const sel = document.getElementById('attendMonth');
-  if (!sel?.value) return;
-  const [year, month] = sel.value.split('-').map(Number);
-  const daysInMonth = new Date(year, month, 0).getDate();
-  const wrap = document.getElementById('attendTable');
-
-  // 아동 목록
-  const kids = DB.children;
-  if (!kids.length) {
-    wrap.innerHTML = '<div style="color:var(--text3);padding:8px">등록된 아동이 없습니다</div>';
-    return;
-  }
-
-  // 날짜 헤더
-  const days = Array.from({length: daysInMonth}, (_,i) => i+1);
-  const dateHeaders = days.map(d => {
-    const dow = new Date(year, month-1, d).getDay();
-    const isWeekend = dow===0||dow===6;
-    const dowLabel = ['일','월','화','수','목','금','토'][dow];
-    return `<th style="min-width:32px;text-align:center;font-size:10px;color:${isWeekend?'var(--red)':'var(--text3)'};padding:4px 2px">${d}<br>${dowLabel}</th>`;
-  }).join('');
-
-  // 아동별 행
-  const rows = kids.map((kid, ki) => {
-    const code = childCode(ki);
-    const cells = days.map(d => {
-      const dateStr = `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-      const status = DB.attendance[dateStr]?.[kid.id] || '';
-      const dow = new Date(year, month-1, d).getDay();
-      const isWeekend = dow===0||dow===6;
-      let bg = '', symbol = '';
-      if (status==='출석') { bg='rgba(52,212,138,.2)'; symbol='●'; }
-      else if (status==='보강') { bg='rgba(245,166,35,.2)'; symbol='▲'; }
-      else if (status==='결석') { bg='rgba(240,86,86,.2)'; symbol='×'; }
-      else if (status==='취소') { bg='rgba(78,87,117,.2)'; symbol='－'; }
-      return `<td style="text-align:center;cursor:pointer;background:${bg};padding:4px 2px;font-size:11px;${isWeekend&&!status?'opacity:.4':''}"
-        onclick="toggleAttend('${kid.id}','${dateStr}')"
-        title="${dateStr} ${code} ${status||'미기록'}">${symbol}</td>`;
-    }).join('');
-
-    // 월 합계
-    const total = days.filter(d => {
-      const ds = `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-      return DB.attendance[ds]?.[kid.id]==='출석'||DB.attendance[ds]?.[kid.id]==='보강';
-    }).length;
-
-    return `<tr>
-      <td style="padding:6px 10px;font-size:12px;font-weight:500;white-space:nowrap;position:sticky;left:0;background:var(--bg2);z-index:1">${code}</td>
-      ${cells}
-      <td style="padding:6px 8px;font-size:11px;font-family:var(--mono);color:var(--accent);text-align:center">${total}회</td>
-    </tr>`;
-  }).join('');
-
-  wrap.innerHTML = `<div style="overflow-x:auto">
-    <table style="border-collapse:collapse;width:100%;font-size:12px">
-      <thead>
-        <tr>
-          <th style="padding:6px 10px;text-align:left;font-size:10px;color:var(--text3);position:sticky;left:0;background:var(--bg2);z-index:2">아동</th>
-          ${dateHeaders}
-          <th style="padding:4px 8px;font-size:10px;color:var(--text3);text-align:center">합계</th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
-  </div>`;
-}
-
-function toggleAttend(kidId, dateStr) {
-  const cycle = ['', '출석', '보강', '결석', '취소'];
-  if (!DB.attendance[dateStr]) DB.attendance[dateStr] = {};
-  const cur = DB.attendance[dateStr][kidId] || '';
-  const next = cycle[(cycle.indexOf(cur) + 1) % cycle.length];
-  if (next) DB.attendance[dateStr][kidId] = next;
-  else delete DB.attendance[dateStr][kidId];
-  save();
-  renderAttend();
-}
-
-// ════ 엑셀 내보내기 ════
-function exportExcel() {
-  const sel = document.getElementById('attendMonth');
-  if (!sel?.value) { showToast('월을 선택해주세요','err'); return; }
-  const [year, month] = sel.value.split('-').map(Number);
-  const monthLabel = `${year}년 ${month}월`;
-  const daysInMonth = new Date(year, month, 0).getDate();
-  const days = Array.from({length: daysInMonth}, (_,i) => i+1);
-  const kids = DB.children;
-
-  // 아동 코드 맵 (이름 없음)
-  const codeMap = {};
-  kids.forEach((k,i) => { codeMap[k.id] = childCode(i); });
-
-  // ── 시트1: 출결 기록 ──
-  const sheet1 = [
-    [`${monthLabel} 출결 기록`],
-    ['아동', ...days.map(d=>{
-      const dow=['일','월','화','수','목','금','토'][new Date(year,month-1,d).getDay()];
-      return `${d}(${dow})`;
-    }), '출석합계']
-  ];
-  kids.forEach((kid, ki) => {
-    const code = childCode(ki);
-    const row = [code];
-    let total = 0;
-    days.forEach(d => {
-      const ds = `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-      const st = DB.attendance[ds]?.[kid.id] || '';
-      row.push(st);
-      if (st==='출석'||st==='보강') total++;
-    });
-    row.push(total);
-    sheet1.push(row);
-  });
-
-  // ── 시트2: 세션별 수행 기록 ──
-  const sheet2 = [
-    [`${monthLabel} 세션 수행 기록`],
-    ['날짜','아동코드','LTO코드','LTO명','STO','정반응(+)','촉구반응(P)','오반응(-)','총시도','정반응률','메모']
-  ];
-
-  const allSess = Object.values(DB.sessionArchive).flat()
-    .filter(s => {
-      const d = s.date?.slice(0,7);
-      return d === `${year}-${String(month).padStart(2,'0')}`;
-    })
-    .sort((a,b) => a.date.localeCompare(b.date));
-
-  allSess.forEach(sess => {
-    const code = codeMap[sess.childId] || '아동?';
-    (sess.programs||[]).forEach(prog => {
-      (prog.stos||[]).forEach(sto => {
-        const trials = [...(sto.trials||[]),...(sto.blocks||[]).flat()].filter(t=>t);
-        if (!trials.length) return;
-        const plus = trials.filter(t=>t==='+').length;
-        const p = trials.filter(t=>t==='P').length;
-        const minus = trials.filter(t=>t==='-').length;
-        const pct = Math.round(plus/trials.length*100);
-        sheet2.push([
-          sess.date, code, prog.code, prog.name,
-          sto.name, plus, p, minus, trials.length, pct+'%',
-          sto.memo||''
-        ]);
-      });
-    });
-  });
-
-  // ── 시트3: LTO별 정반응률 추이 ──
-  const sheet3 = [
-    [`${monthLabel} LTO별 정반응률 요약`],
-    ['아동코드','LTO코드','LTO명','날짜','정반응률(%)','총시도수']
-  ];
-
-  const ltoMap = {}; // { kidId+code: {name, dates: {date: {plus,total}}} }
-  allSess.forEach(sess => {
-    const code = codeMap[sess.childId]||'아동?';
-    (sess.programs||[]).forEach(prog => {
-      const key = code+'|'+prog.code;
-      if (!ltoMap[key]) ltoMap[key]={code, ltoCode:prog.code, name:prog.name, dates:{}};
-      const trials = (prog.stos||[]).flatMap(s=>[...(s.trials||[]),...(s.blocks||[]).flat()]).filter(t=>t);
-      if (!trials.length) return;
-      ltoMap[key].dates[sess.date] = {
-        plus: trials.filter(t=>t==='+').length,
-        total: trials.length
-      };
-    });
-  });
-
-  Object.values(ltoMap).forEach(entry => {
-    Object.entries(entry.dates).sort().forEach(([date, d]) => {
-      sheet3.push([
-        entry.code, entry.ltoCode, entry.name, date,
-        Math.round(d.plus/d.total*100), d.total
-      ]);
-    });
-  });
-
-  // ── XLSX 생성 (SheetJS CDN 없이 CSV+ZIP 대신 간단한 HTML테이블→다운로드) ──
-  // SheetJS를 동적 로드
-  const script = document.createElement('script');
-  script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
-  script.onload = () => {
-    const wb = XLSX.utils.book_new();
-
-    const addSheet = (data, name) => {
-      const ws = XLSX.utils.aoa_to_sheet(data);
-      // 컬럼 너비 자동
-      const colWidths = data[1]?.map((_,ci) => ({
-        wch: Math.max(...data.map(r => String(r[ci]||'').length), 4)
-      })) || [];
-      ws['!cols'] = colWidths;
-      XLSX.utils.book_append_sheet(wb, ws, name);
-    };
-
-    addSheet(sheet1, '출결기록');
-    addSheet(sheet2, '수행기록');
-    addSheet(sheet3, 'LTO요약');
-
-    XLSX.writeFile(wb, `ABA_${year}년${month}월_기록.xlsx`);
-    showToast('엑셀 파일 다운로드 완료 📊','ok');
-  };
-  script.onerror = () => showToast('엑셀 라이브러리 로드 실패','err');
-  document.head.appendChild(script);
-}
-
-// ════ 토스트 ════
-let tt;
-function showToast(msg,t=''){
-  const el=document.getElementById('toast');
-  el.textContent=msg;el.className=`toast ${t} show`;
-  clearTimeout(tt);tt=setTimeout(()=>el.classList.remove('show'),2800);
-}
-
-init();
-</script>
-</body>
-</html>
