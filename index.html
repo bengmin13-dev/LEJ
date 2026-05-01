@@ -580,7 +580,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 // ════ Supabase 설정 ════
 // 아래 두 값을 본인 Supabase 프로젝트의 값으로 교체하세요
 const SUPA_URL = 'https://fkjjbgontwvznouxsmjl.supabase.co';
-const SUPA_KEY = 'sb_publishable_dz-n82-UGp6VqF2tDm9W7Q_4x-uwdmG'; // 재발급한 키 입력
+const SUPA_KEY = 'YOUR_PUBLISHABLE_KEY_HERE'; // 재발급한 키 입력
 
 const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
 
@@ -2425,6 +2425,14 @@ async function saveSess() {
 
   S.editingSessionId = null;
   save();
+
+  // 빈 상태 저장 후 보드 초기화 (재저장 방지)
+  if (!progs.length) {
+    const saveBtn = document.querySelector('[onclick="saveSess()"]');
+    if (saveBtn) { saveBtn.textContent='💾 저장'; saveBtn.style.background=''; }
+    showToast('빈 상태로 저장됨','ok');
+    return;
+  }
 
   // Supabase 클라우드 저장 (일자별 단일)
   if (IS_ONLINE) {
