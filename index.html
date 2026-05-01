@@ -410,7 +410,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 <div id="p-hist" class="hidden fade-in">
   <div class="topbar">
     <div class="topbar-title">세션 히스토리</div>
-    <button class="btn btn-primary btn-sm" onclick="generateDailyNote()" style="margin-left:auto">✍️ 오늘 일지 생성</button>
+    <div style="display:flex;align-items:center;gap:6px;margin-left:auto">
+      <input type="date" id="noteTargetDate" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:4px 8px;font-size:11px;font-family:var(--font);outline:none">
+      <button class="btn btn-primary btn-sm" onclick="generateDailyNote()">✍️ 일지 생성</button>
+    </div>
   </div>
   <div class="content">
     <!-- 일지 패널 -->
@@ -3037,60 +3040,84 @@ function renderHist() {
 }
 
 // ════ 오늘 일지 생성 (Claude API) ════
-async function generateDailyNote() {
+function generateDailyNote() {
   if (!S.child) { showToast('아동을 선택해주세요','err'); return; }
-  const dateStr = document.getElementById('sDate')?.value || new Date().toISOString().split('T')[0];
+  // 날짜 선택: noteTargetDate 우선, 없으면 sDate
+  const dateStr = document.getElementById('noteTargetDate')?.value
+    || document.getElementById('sDate')?.value
+    || new Date().toISOString().split('T')[0];
+
   // sessionArchive + sessions 모두 확인
   const allSess = [...(DB.sessionArchive[dateStr]||[]), ...DB.sessions.filter(s=>s.date===dateStr)];
   const sess = allSess.find(s=>s.childId===S.child.id && s.programs?.length);
-  if (!sess) { showToast('오늘 세션 기록이 없습니다. 저장 후 다시 시도해주세요','err'); return; }
+  if (!sess) { showToast(dateStr + ' 세션 기록이 없습니다','err'); return; }
 
   const panel = document.getElementById('dailyNotePanel');
   const textarea = document.getElementById('dailyNoteText');
   const dateLabel = document.getElementById('dailyNoteDate');
   panel.classList.remove('hidden');
-  textarea.value = '일지 생성 중...';
   dateLabel.textContent = dateStr + ' · ' + S.child.name;
 
-  const NL = String.fromCharCode(10);
-  const rows = [];
-  sess.programs.forEach(function(p) {
-    rows.push('프로그램: ' + p.name + ' (' + p.code + ')');
-    (p.stos||[]).forEach(function(s) {
-      const trials = [].concat(s.trials||[]).concat((s.blocks||[]).reduce(function(a,b){return a.concat(b)},[])).filter(function(t){return t;});
-      if (!trials.length) return;
-      const plus = trials.filter(function(t){return t==='+'}).length;
-      const pct = Math.round(plus/trials.length*100);
-      let line = '  STO: ' + s.name + ' ' + pct + '% (' + plus + '/' + trials.length + ')';
-      if (s.memo) line += ' [메모: ' + s.memo + ']';
-      if (s.taskMemo) line += ' [SD: ' + s.taskMemo + ']';
-      rows.push(line);
-    });
-  });
-  const summary = rows.join(NL);
-  const sessionNote = sess.note || '없음';
-  const promptText = ['다음은 ABA 치료 세션 기록입니다. 아동의 개인정보(이름, 나이 등)는 포함하지 말고,',
-    '오늘 수업에서 보여준 수행과 특이사항을 부모님께 설명하는 간단한 일지를 5줄 이내로 작성해주세요.',
-    '전문 용어보다 쉬운 말로, 긍정적이고 구체적으로 써주세요.',
-    '', '세션 날짜: ' + dateStr, '세션 메모: ' + sessionNote, '', '수행 기록:', summary
-  ].join(NL);
+  // 세션 데이터 분석
+  const progResults = [];
+  let totalPlus = 0, totalTrials = 0;
 
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 1000,
-        messages: [{ role: 'user', content: promptText }]
-      })
+  sess.programs.forEach(function(p) {
+    const pTrials = (p.stos||[]).flatMap(function(s){
+      return [].concat(s.trials||[]).concat((s.blocks||[]).reduce(function(a,b){return a.concat(b)},[]))
+    }).filter(function(t){return t;});
+    if (!pTrials.length) return;
+    const pPlus = pTrials.filter(function(t){return t==='+'}).length;
+    const pPct = Math.round(pPlus/pTrials.length*100);
+    totalPlus += pPlus; totalTrials += pTrials.length;
+
+    // STO 메모 수집
+    const memos = (p.stos||[]).map(function(s){return s.memo||s.taskMemo||'';}).filter(Boolean);
+    progResults.push({ name: p.name, pct: pPct, trials: pTrials.length, memos: memos });
+  });
+
+  const overallPct = totalTrials ? Math.round(totalPlus/totalTrials*100) : 0;
+  const hi = progResults.filter(function(p){return p.pct>=80;});
+  const lo = progResults.filter(function(p){return p.pct<50;});
+  const mid = progResults.filter(function(p){return p.pct>=50&&p.pct<80;});
+
+  // 자동 일지 생성
+  const NL = String.fromCharCode(10);
+  const lines = [];
+  lines.push('[' + dateStr + ' 수업 일지]');
+  lines.push('');
+  lines.push('오늘 수업에서 ' + sess.programs.filter(function(p){
+    return (p.stos||[]).some(function(s){
+      return [].concat(s.trials||[]).concat((s.blocks||[]).reduce(function(a,b){return a.concat(b)},[])).filter(function(t){return t;}).length>0;
     });
-    const data = await res.json();
-    textarea.value = (data.content&&data.content[0]&&data.content[0].text) || '일지 생성에 실패했습니다.';
-  } catch(e) {
-    textarea.value = '일지 생성 중 오류가 발생했습니다.';
-    console.error(e);
+  }).length + '개 프로그램을 진행하였습니다. 전체 정반응률은 ' + overallPct + '%입니다.');
+
+  if (hi.length) {
+    lines.push('');
+    lines.push('✅ 잘 수행한 프로그램: ' + hi.map(function(p){return p.name+'('+p.pct+'%)'}).join(', '));
   }
+  if (mid.length) {
+    lines.push('');
+    lines.push('📈 진행 중인 프로그램: ' + mid.map(function(p){return p.name+'('+p.pct+'%)'}).join(', '));
+  }
+  if (lo.length) {
+    lines.push('');
+    lines.push('🔄 추가 연습 필요: ' + lo.map(function(p){return p.name+'('+p.pct+'%)'}).join(', '));
+  }
+
+  // 메모 반영
+  const allMemos = progResults.flatMap(function(p){return p.memos;});
+  if (allMemos.length) {
+    lines.push('');
+    lines.push('💬 특이사항: ' + allMemos.slice(0,3).join(' / '));
+  }
+
+  if (sess.note) {
+    lines.push('');
+    lines.push('📝 세션 메모: ' + sess.note);
+  }
+
+  textarea.value = lines.join(NL);
 }
 
 
@@ -3339,6 +3366,9 @@ function go(page) {
   S.page=page;
   if(page==='graph')renderG();
   if(page==='hist'){
+    // 날짜 선택기 초기화
+    const nd = document.getElementById('noteTargetDate');
+    if (nd && !nd.value) nd.value = new Date().toISOString().split('T')[0];
     if(IS_ONLINE && S.child){
       loadAllSessionsFromCloud(S.child.id).then(()=>renderHist());
     } else {
