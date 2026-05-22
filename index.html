@@ -37,6 +37,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .nav-item:hover{background:var(--bg3);color:var(--text)}
 .nav-item.active{background:rgba(79,142,247,.1);color:var(--accent);border-left-color:var(--accent)}
 .sb-foot{padding:8px 14px;border-top:1px solid var(--border);font-size:10px;color:var(--text3)}
+.goal-task-drop{min-height:36px;background:var(--bg3);border:1px dashed var(--border);border-radius:var(--r);padding:4px;display:flex;flex-wrap:wrap;gap:4px;transition:border-color .15s}
+.goal-task-drop.drag-over{border-color:var(--accent);background:rgba(79,142,247,.08)}
+.goal-task-chip{font-size:10px;background:rgba(79,142,247,.15);border:1px solid rgba(79,142,247,.3);border-radius:4px;padding:2px 7px;color:var(--accent);display:flex;align-items:center;gap:3px;cursor:default}
+.goal-task-chip button{background:none;border:none;color:var(--text3);cursor:pointer;font-size:10px;padding:0 1px;line-height:1}
 
 /* ── 공통 ── */
 .main{flex:1;overflow-y:auto;display:flex;flex-direction:column}
@@ -323,6 +327,28 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <textarea id="sessionNote" class="session-note"
       placeholder="오늘 세션 총평 메모 (전반적인 컨디션, 환경, 특이사항 등)..."
       onchange="S.sessionNote=this.value;autoSave()"></textarea>
+
+    <!-- 단기목표 매트릭스 -->
+    <div id="goalMatrix" style="margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <button onclick="toggleGoalMatrix()" id="goalMatrixToggle"
+          style="background:none;border:1px solid var(--border);border-radius:var(--r);color:var(--text2);padding:3px 10px;font-size:11px;cursor:pointer">
+          🎯 단기목표 매트릭스 ▼
+        </button>
+        <button onclick="addGoalRow()"
+          style="background:none;border:1px solid var(--border);border-radius:var(--r);color:var(--accent);padding:3px 10px;font-size:11px;cursor:pointer"
+          id="goalMatrixAddBtn" class="hidden">+ 행 추가</button>
+      </div>
+      <div id="goalMatrixBody" class="hidden">
+        <!-- 헤더 -->
+        <div style="display:grid;grid-template-columns:1fr 2fr 1fr;gap:4px;margin-bottom:4px">
+          <div style="font-size:10px;font-weight:600;color:var(--text3);padding:4px 8px;background:var(--bg3);border-radius:var(--r);text-align:center">목표</div>
+          <div style="font-size:10px;font-weight:600;color:var(--text3);padding:4px 8px;background:var(--bg3);border-radius:var(--r);text-align:center">과제</div>
+          <div style="font-size:10px;font-weight:600;color:var(--text3);padding:4px 8px;background:var(--bg3);border-radius:var(--r);text-align:center">메모</div>
+        </div>
+        <div id="goalRows"></div>
+      </div>
+    </div>
 
     <!-- 탭 -->
     <div id="tabArea">
@@ -656,7 +682,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 // ════ Supabase 설정 ════
 // 아래 두 값을 본인 Supabase 프로젝트의 값으로 교체하세요
 const SUPA_URL = 'https://fkjjbgontwvznouxsmjl.supabase.co';
-const SUPA_KEY = 'sb_publishable_3Lmh-PCShmYIcNpm9LcSDA_OtnpB9jj'; // 재발급한 키 입력
+const SUPA_KEY = 'YOUR_PUBLISHABLE_KEY_HERE'; // 재발급한 키 입력
 
 const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
 
@@ -1574,6 +1600,111 @@ function toggleProg(code, name, source) {
 }
 
 // ════ 탭 렌더 ════
+// ════ 단기목표 매트릭스 ════
+// 메모리 전용 (저장 불필요)
+let goalMatrixRows = [
+  {goal:'', tasks:[], memo:''},
+  {goal:'', tasks:[], memo:''},
+  {goal:'', tasks:[], memo:''}
+];
+let goalMatrixOpen = false;
+
+function toggleGoalMatrix() {
+  goalMatrixOpen = !goalMatrixOpen;
+  const body = document.getElementById('goalMatrixBody');
+  const addBtn = document.getElementById('goalMatrixAddBtn');
+  const toggle = document.getElementById('goalMatrixToggle');
+  body.classList.toggle('hidden', !goalMatrixOpen);
+  addBtn.classList.toggle('hidden', !goalMatrixOpen);
+  toggle.textContent = '🎯 단기목표 매트릭스 ' + (goalMatrixOpen ? '▲' : '▼');
+  if (goalMatrixOpen) renderGoalMatrix();
+}
+
+function addGoalRow() {
+  goalMatrixRows.push({goal:'', tasks:[], memo:''});
+  renderGoalMatrix();
+}
+
+
+
+function renderGoalMatrix() {
+  const wrap = document.getElementById('goalRows');
+  if (!wrap) return;
+
+  // 행 HTML 생성
+  wrap.innerHTML = goalMatrixRows.map(function(row, i) {
+    const tasksHtml = row.tasks.map(function(t, ti) {
+      return '<div class="goal-task-chip" style="display:flex;align-items:center;gap:3px">'
+        + '<span style="font-size:10px">'+t+'</span>'
+        + '<button data-row="'+i+'" data-task="'+encodeURIComponent(t)+'" class="goal-rm-btn" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:10px;line-height:1">×</button>'
+        + '</div>';
+    }).join('');
+
+    return '<div style="display:grid;grid-template-columns:1fr 2fr 1fr;gap:4px;margin-bottom:4px;align-items:start" data-row="'+i+'">'
+      + '<div style="display:flex;gap:3px;align-items:center">'
+      + '<input type="text" value="'+row.goal.replace(/"/g,'&quot;')+'" data-row="'+i+'" class="goal-input" placeholder="단기 목표..." style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:5px 7px;font-size:11px;font-family:var(--font);outline:none">'
+      + '<button data-row="'+i+'" class="goal-del-btn" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:2px;flex-shrink:0">×</button>'
+      + '</div>'
+      + '<div class="goal-task-drop" data-row="'+i+'" id="goal-drop-'+i+'">'
+      + (tasksHtml || '<span style="font-size:10px;color:var(--text3)">탭을 드래그해서 배치</span>')
+      + '</div>'
+      + '<input type="text" value="'+row.memo.replace(/"/g,'&quot;')+'" data-row="'+i+'" class="goal-memo-input" placeholder="메모..." style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:5px 7px;font-size:11px;font-family:var(--font);outline:none;width:100%">'
+      + '</div>';
+  }).join('');
+
+  // 이벤트 리스너 등록
+  wrap.querySelectorAll('.goal-input').forEach(function(el) {
+    el.addEventListener('change', function() {
+      goalMatrixRows[Number(this.dataset.row)].goal = this.value;
+    });
+  });
+  wrap.querySelectorAll('.goal-memo-input').forEach(function(el) {
+    el.addEventListener('change', function() {
+      goalMatrixRows[Number(this.dataset.row)].memo = this.value;
+    });
+  });
+  wrap.querySelectorAll('.goal-del-btn').forEach(function(el) {
+    el.addEventListener('click', function() {
+      goalMatrixRows.splice(Number(this.dataset.row), 1);
+      renderGoalMatrix();
+    });
+  });
+  wrap.querySelectorAll('.goal-rm-btn').forEach(function(el) {
+    el.addEventListener('click', function() {
+      const ri = Number(this.dataset.row);
+      const task = decodeURIComponent(this.dataset.task);
+      goalMatrixRows[ri].tasks = goalMatrixRows[ri].tasks.filter(function(t){return t!==task;});
+      renderGoalMatrix();
+    });
+  });
+  wrap.querySelectorAll('.goal-task-drop').forEach(function(el) {
+    el.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      this.classList.add('drag-over');
+    });
+    el.addEventListener('dragleave', function() {
+      this.classList.remove('drag-over');
+    });
+    el.addEventListener('drop', function(e) {
+      e.preventDefault();
+      this.classList.remove('drag-over');
+      const ri = Number(this.dataset.row);
+      const code = e.dataTransfer.getData('text/plain');
+      if (!code) return;
+      const p = S.board[code];
+      if (!p) return;
+      const label = p.name || code;
+      if (!goalMatrixRows[ri].tasks.includes(label)) {
+        goalMatrixRows[ri].tasks.push(label);
+        renderGoalMatrix();
+      }
+    });
+  });
+}
+
+
+
+
 function renderTabs() {
   const area = document.getElementById('tabArea');
 
@@ -1622,6 +1753,7 @@ function renderTabs() {
       ondrop="tabDrop(event,'${p.code}')"
       ondragleave="tabDragLeave(event)">
       <span class="pt-code">${p.code}</span>
+      <span class="pt-name" style="font-size:10px;color:var(--text2);margin-left:2px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</span>
       ${pct!==null
         ? `<span class="pt-pct" style="color:${pctColor}">${pct}%</span>`
         : `<span class="pt-cnt">${curTrials.length}/10</span>`
@@ -1672,6 +1804,7 @@ function tabDragStart(e, code) {
   _dragCode = code;
   e.target.classList.add('dragging');
   e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', code);
 }
 function tabDragOver(e) {
   e.preventDefault();
@@ -2313,9 +2446,8 @@ function sessionDeleteSTO(code, stoIdx) {
   if (p.stos.length <= 1) { showToast('STO가 1개 이하일 때는 삭제할 수 없어요','err'); return; }
   const sto = p.stos[stoIdx];
 
-  // 기록 있으면 아카이브로 이동
-  const hasData = [].concat(sto.trials||[]).concat((sto.blocks||[]).reduce(function(a,b){return a.concat(b)},[])).some(function(t){return t;});
-  if (hasData && S.child) {
+  // 기록 여부 관계없이 항상 아카이브로 이동
+  if (S.child) {
     const childId = S.child.id;
     if (!DB.archivedProgs[childId]) DB.archivedProgs[childId] = [];
     // 기존 아카이브에서 이 LTO 찾기 (있으면 STO 추가, 없으면 새로 생성)
