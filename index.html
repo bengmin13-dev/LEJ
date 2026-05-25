@@ -682,7 +682,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 // ════ Supabase 설정 ════
 // 아래 두 값을 본인 Supabase 프로젝트의 값으로 교체하세요
 const SUPA_URL = 'https://fkjjbgontwvznouxsmjl.supabase.co';
-const SUPA_KEY = 'sb_publishable_3Lmh-PCShmYIcNpm9LcSDA_OtnpB9jj'; // 재발급한 키 입력
+const SUPA_KEY = 'YOUR_PUBLISHABLE_KEY_HERE'; // 재발급한 키 입력
 
 const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
 
@@ -1583,15 +1583,51 @@ function toggleProg(code, name, source) {
       ? [...editedStos]
       : (lto?.stos||['기본 STO']).map(sn => typeof sn==='string'?sn:(sn.name||'STO'));
     const stoStatusMap = (S.child && DB.stoStatus[S.child.id]) ? DB.stoStatus[S.child.id] : {};
-    const stos = baseStos.map((sn, si) => ({
-      name: sn,
-      trials: Array(10).fill(null),
-      blocks: [],
-      memo: '',
-      taskMemo: '',
-      status: stoStatusMap[code + '_' + si] || 'active'
-    }));
-    S.board[code] = { code, name, source, stos, currentSto:0, memo:'' };
+
+    // archivedProgs에서 이 LTO의 STO 아카이브 찾기 (자동 복원)
+    const childId = S.child?.id;
+    const archivedStoEntry = childId
+      ? (DB.archivedProgs[childId]||[]).find(function(a){ return a.code===code && a.type==='sto'; })
+      : null;
+
+    let finalStos;
+    if (archivedStoEntry && archivedStoEntry.stos?.length) {
+      // 아카이브된 STO + 마스터 STO 합치기 (중복 제거, 아카이브 데이터 우선)
+      const archivedNames = new Set(archivedStoEntry.stos.map(function(s){return s.name;}));
+      const masterOnly = baseStos.filter(function(sn){ return !archivedNames.has(sn); });
+      finalStos = [
+        // 아카이브된 STO (기존 기록 포함)
+        ...archivedStoEntry.stos.map(function(s, si) {
+          return {
+            name: s.name,
+            trials: [...(s.trials||Array(10).fill(null))],
+            blocks: (s.blocks||[]).map(function(b){return [...b];}),
+            memo: s.memo||'',
+            taskMemo: s.taskMemo||'',
+            status: stoStatusMap[code+'_'+si] || s.status || 'active'
+          };
+        }),
+        // 마스터에만 있는 신규 STO
+        ...masterOnly.map(function(sn, si) {
+          const ri = archivedStoEntry.stos.length + si;
+          return {
+            name: sn, trials: Array(10).fill(null), blocks: [],
+            memo: '', taskMemo: '',
+            status: stoStatusMap[code+'_'+ri] || 'active'
+          };
+        })
+      ];
+    } else {
+      finalStos = baseStos.map(function(sn, si) {
+        return {
+          name: sn, trials: Array(10).fill(null), blocks: [],
+          memo: '', taskMemo: '',
+          status: stoStatusMap[code+'_'+si] || 'active'
+        };
+      });
+    }
+
+    S.board[code] = { code, name, source, stos: finalStos, currentSto:0, memo:'' };
     chip?.classList.add('on');
     if (!S.current) S.current = code;
   }
@@ -1601,13 +1637,29 @@ function toggleProg(code, name, source) {
 
 // ════ 탭 렌더 ════
 // ════ 단기목표 매트릭스 ════
-// 메모리 전용 (저장 불필요)
+// 아동별 메모리 저장 (새로고침 시 초기화)
+const goalMatrixStore = {}; // { childId: [{goal, tasks, memo}] }
 let goalMatrixRows = [
   {goal:'', tasks:[], memo:''},
   {goal:'', tasks:[], memo:''},
   {goal:'', tasks:[], memo:''}
 ];
 let goalMatrixOpen = false;
+
+function saveGoalMatrix() {
+  if (!S.child) return;
+  goalMatrixStore[S.child.id] = goalMatrixRows.map(function(r){
+    return {goal:r.goal, tasks:[...r.tasks], memo:r.memo};
+  });
+}
+
+function loadGoalMatrix() {
+  if (!S.child) return;
+  const saved = goalMatrixStore[S.child.id];
+  goalMatrixRows = saved
+    ? saved.map(function(r){return {goal:r.goal, tasks:[...r.tasks], memo:r.memo};})
+    : [{goal:'',tasks:[],memo:''},{goal:'',tasks:[],memo:''},{goal:'',tasks:[],memo:''}];
+}
 
 function toggleGoalMatrix() {
   goalMatrixOpen = !goalMatrixOpen;
@@ -1622,7 +1674,7 @@ function toggleGoalMatrix() {
 
 function addGoalRow() {
   goalMatrixRows.push({goal:'', tasks:[], memo:''});
-  renderGoalMatrix();
+  saveGoalMatrix(); renderGoalMatrix();
 }
 
 
@@ -1656,17 +1708,19 @@ function renderGoalMatrix() {
   wrap.querySelectorAll('.goal-input').forEach(function(el) {
     el.addEventListener('change', function() {
       goalMatrixRows[Number(this.dataset.row)].goal = this.value;
+      saveGoalMatrix();
     });
   });
   wrap.querySelectorAll('.goal-memo-input').forEach(function(el) {
     el.addEventListener('change', function() {
       goalMatrixRows[Number(this.dataset.row)].memo = this.value;
+      saveGoalMatrix();
     });
   });
   wrap.querySelectorAll('.goal-del-btn').forEach(function(el) {
     el.addEventListener('click', function() {
       goalMatrixRows.splice(Number(this.dataset.row), 1);
-      renderGoalMatrix();
+      saveGoalMatrix(); renderGoalMatrix();
     });
   });
   wrap.querySelectorAll('.goal-rm-btn').forEach(function(el) {
@@ -1674,7 +1728,7 @@ function renderGoalMatrix() {
       const ri = Number(this.dataset.row);
       const task = decodeURIComponent(this.dataset.task);
       goalMatrixRows[ri].tasks = goalMatrixRows[ri].tasks.filter(function(t){return t!==task;});
-      renderGoalMatrix();
+      saveGoalMatrix(); renderGoalMatrix();
     });
   });
   wrap.querySelectorAll('.goal-task-drop').forEach(function(el) {
@@ -1775,20 +1829,15 @@ function removeTabByCode(code) {
   const p = S.board[code];
   // 기록이 있으면 아카이브로 이동
   if (p && S.child) {
-    const hasData = (p.stos||[]).some(function(s){
-      return [].concat(s.trials||[]).concat((s.blocks||[]).reduce(function(a,b){return a.concat(b)},[])).some(function(t){return t;});
+    const childId = S.child.id;
+    if (!DB.archivedProgs[childId]) DB.archivedProgs[childId] = [];
+    DB.archivedProgs[childId].push({
+      code: p.code, name: p.name, source: p.source,
+      stos: p.stos.map(function(s){return Object.assign({},s,{trials:[...s.trials],blocks:(s.blocks||[]).map(function(b){return [...b];})});}),
+      archivedAt: new Date().toISOString().split('T')[0],
+      sessionDate: document.getElementById('sDate')?.value || ''
     });
-    if (hasData) {
-      const childId = S.child.id;
-      if (!DB.archivedProgs[childId]) DB.archivedProgs[childId] = [];
-      DB.archivedProgs[childId].push({
-        code: p.code, name: p.name, source: p.source,
-        stos: p.stos.map(function(s){return Object.assign({},s,{trials:[...s.trials],blocks:(s.blocks||[]).map(function(b){return [...b];})});}),
-        archivedAt: new Date().toISOString().split('T')[0],
-        sessionDate: document.getElementById('sDate')?.value || ''
-      });
-      save();
-    }
+    save(); saveAppDataToCloud();
   }
   delete S.board[code];
   const chip = document.getElementById('ch-'+code);
@@ -3715,8 +3764,9 @@ async function onChild(id) {
   document.getElementById('picker')?.classList.add('hidden');
   document.getElementById('pickerBtn').textContent = '+ 프로그램 추가';
 
-  // 아동 전환 전 현재 메모 저장
+  // 아동 전환 전 현재 메모 + 매트릭스 저장
   saveMemo();
+  saveGoalMatrix();
   if (S.child && Object.keys(S.board).length) autoSave();
 
   // 기존 세션 보드 초기화
@@ -3736,6 +3786,10 @@ async function onChild(id) {
       await loadCustomStosFromCloud(S.child.id);
       await loadAllSessionsFromCloud(S.child.id);
     }
+    // 매트릭스 로드 (아동별)
+    loadGoalMatrix();
+    if (goalMatrixOpen) renderGoalMatrix();
+
     // 오늘 날짜 세션 자동 로드
     const todayStr = document.getElementById('sDate')?.value;
     if (todayStr) {
