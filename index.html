@@ -341,7 +341,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
       </div>
       <div id="goalMatrixBody" class="hidden">
         <!-- 헤더 -->
-        <div style="display:grid;grid-template-columns:1fr 2fr 1fr;gap:4px;margin-bottom:4px">
+        <div style="display:grid;grid-template-columns:20px 1fr 2fr 1fr;gap:4px;margin-bottom:4px">
+          <div></div>
           <div style="font-size:10px;font-weight:600;color:var(--text3);padding:4px 8px;background:var(--bg3);border-radius:var(--r);text-align:center">목표</div>
           <div style="font-size:10px;font-weight:600;color:var(--text3);padding:4px 8px;background:var(--bg3);border-radius:var(--r);text-align:center">과제</div>
           <div style="font-size:10px;font-weight:600;color:var(--text3);padding:4px 8px;background:var(--bg3);border-radius:var(--r);text-align:center">메모</div>
@@ -682,7 +683,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 // ════ Supabase 설정 ════
 // 아래 두 값을 본인 Supabase 프로젝트의 값으로 교체하세요
 const SUPA_URL = 'https://fkjjbgontwvznouxsmjl.supabase.co';
-const SUPA_KEY = 'sb_publishable_dz-n82-UGp6VqF2tDm9W7Q_4x-uwdmG'; // 재발급한 키 입력
+const SUPA_KEY = 'YOUR_PUBLISHABLE_KEY_HERE'; // 재발급한 키 입력
 
 const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
 
@@ -1648,9 +1649,22 @@ let goalMatrixOpen = false;
 
 function saveGoalMatrix() {
   if (!S.child) return;
-  goalMatrixStore[S.child.id] = goalMatrixRows.map(function(r){
+  const data = goalMatrixRows.map(function(r){
     return {goal:r.goal, tasks:[...r.tasks], memo:r.memo};
   });
+  goalMatrixStore[S.child.id] = data;
+  try { localStorage.setItem('gm_'+S.child.id, JSON.stringify(data)); } catch(e){}
+}
+
+function loadGoalMatrixFromStorage(childId) {
+  // 1. 메모리 우선
+  if (goalMatrixStore[childId]) return goalMatrixStore[childId];
+  // 2. localStorage
+  try {
+    const raw = localStorage.getItem('gm_'+childId);
+    if (raw) { const d=JSON.parse(raw); goalMatrixStore[childId]=d; return d; }
+  } catch(e){}
+  return null;
 }
 
 function loadGoalMatrix() {
@@ -1658,8 +1672,7 @@ function loadGoalMatrix() {
     goalMatrixRows = [{goal:'',tasks:[],memo:''},{goal:'',tasks:[],memo:''},{goal:'',tasks:[],memo:''}];
     return;
   }
-  const saved = goalMatrixStore[S.child.id];
-  // 깊은 복사로 참조 공유 방지
+  const saved = loadGoalMatrixFromStorage(S.child.id);
   goalMatrixRows = saved
     ? JSON.parse(JSON.stringify(saved))
     : [{goal:'',tasks:[],memo:''},{goal:'',tasks:[],memo:''},{goal:'',tasks:[],memo:''}];
@@ -1690,13 +1703,15 @@ function renderGoalMatrix() {
   // 행 HTML 생성
   wrap.innerHTML = goalMatrixRows.map(function(row, i) {
     const tasksHtml = row.tasks.map(function(t, ti) {
-      return '<div class="goal-task-chip" style="display:flex;align-items:center;gap:3px">'
+      const chipCode = t.split(':')[0].trim();
+      return '<div class="goal-task-chip" style="display:flex;align-items:center;gap:3px;cursor:pointer" data-chip-code="'+chipCode+'" title="클릭하면 세션 기록 창 열림">'
         + '<span style="font-size:10px">'+t+'</span>'
         + '<button data-row="'+i+'" data-task="'+encodeURIComponent(t)+'" class="goal-rm-btn" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:10px;line-height:1">×</button>'
         + '</div>';
     }).join('');
 
-    return '<div style="display:grid;grid-template-columns:1fr 2fr 1fr;gap:4px;margin-bottom:4px;align-items:start" data-row="'+i+'">'
+    return '<div style="display:grid;grid-template-columns:20px 1fr 2fr 1fr;gap:4px;margin-bottom:4px;align-items:start" data-row="'+i+'" draggable="true" id="goal-row-'+i+'">'
+      + '<div class="goal-row-handle" data-row="'+i+'" style="cursor:grab;color:var(--text3);font-size:14px;padding:4px 2px;text-align:center;user-select:none">⋮⋮</div>'
       + '<div style="display:flex;gap:3px;align-items:center">'
       + '<input type="text" value="'+row.goal.replace(/"/g,'&quot;')+'" data-row="'+i+'" class="goal-input" placeholder="단기 목표..." style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:5px 7px;font-size:11px;font-family:var(--font);outline:none">'
       + '<button data-row="'+i+'" class="goal-del-btn" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:2px;flex-shrink:0">×</button>'
@@ -1728,13 +1743,51 @@ function renderGoalMatrix() {
     });
   });
   wrap.querySelectorAll('.goal-rm-btn').forEach(function(el) {
-    el.addEventListener('click', function() {
+    el.addEventListener('click', function(e) {
+      e.stopPropagation();
       const ri = Number(this.dataset.row);
       const task = decodeURIComponent(this.dataset.task);
       goalMatrixRows[ri].tasks = goalMatrixRows[ri].tasks.filter(function(t){return t!==task;});
       saveGoalMatrix(); renderGoalMatrix();
     });
   });
+  wrap.querySelectorAll('[data-chip-code]').forEach(function(el) {
+    el.addEventListener('click', function() {
+      selectProgFromMatrix(this.dataset.chipCode);
+    });
+  });
+  // 행 드래그 순서 변경
+  let _dragRowIdx = null;
+  wrap.querySelectorAll('[id^="goal-row-"]').forEach(function(el) {
+    el.addEventListener('dragstart', function(e) {
+      _dragRowIdx = Number(this.dataset.row);
+      this.style.opacity = '0.5';
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('goal-row', _dragRowIdx);
+    });
+    el.addEventListener('dragend', function() {
+      this.style.opacity = '1';
+    });
+    el.addEventListener('dragover', function(e) {
+      if (e.dataTransfer.types.includes('goal-row')) {
+        e.preventDefault();
+        this.style.outline = '2px solid var(--accent)';
+      }
+    });
+    el.addEventListener('dragleave', function() { this.style.outline = ''; });
+    el.addEventListener('drop', function(e) {
+      if (!e.dataTransfer.types.includes('goal-row')) return;
+      e.preventDefault(); e.stopPropagation();
+      this.style.outline = '';
+      const toIdx = Number(this.dataset.row);
+      if (_dragRowIdx===null || _dragRowIdx===toIdx) return;
+      const moved = goalMatrixRows.splice(_dragRowIdx, 1)[0];
+      goalMatrixRows.splice(toIdx, 0, moved);
+      _dragRowIdx = null;
+      saveGoalMatrix(); renderGoalMatrix();
+    });
+  });
+
   wrap.querySelectorAll('.goal-task-drop').forEach(function(el) {
     el.addEventListener('dragover', function(e) {
       e.preventDefault();
@@ -1751,10 +1804,11 @@ function renderGoalMatrix() {
       if (!code) return;
       const p = S.board[code];
       if (!p) return;
-      const label = p.name || code;
-      if (!goalMatrixRows[ri].tasks.includes(label)) {
+      const label = code + ': ' + (p.name || code);
+      const exists = goalMatrixRows[ri].tasks.some(function(t){ return t.startsWith(code+':') || t===label; });
+      if (!exists) {
         goalMatrixRows[ri].tasks.push(label);
-        renderGoalMatrix();
+        saveGoalMatrix(); renderGoalMatrix();
       }
     });
   });
@@ -1762,6 +1816,13 @@ function renderGoalMatrix() {
 
 
 
+
+function selectProgFromMatrix(code) {
+  if (!S.board[code]) { showToast('세션에 없는 과제예요. 먼저 추가해주세요','err'); return; }
+  S.current = code;
+  go('rec');
+  renderTabs(); renderRecPanel();
+}
 
 function renderTabs() {
   const area = document.getElementById('tabArea');
@@ -1795,6 +1856,23 @@ function renderTabs() {
     const pct = allTrials.length ? Math.round(allTrials.filter(t=>t==='+').length/allTrials.length*100) : null;
     const mastery = pct!==null && pct>=80;
 
+    // 2회기 연속 80% 이상 체크
+    let consecutive80 = false;
+    if (S.child) {
+      const allSess = [...Object.values(DB.sessionArchive).flat(), ...DB.sessions]
+        .filter(function(s){ return s.childId===S.child.id; })
+        .sort(function(a,b){ return b.date.localeCompare(a.date); });
+      let cnt80 = 0;
+      for (let si=0; si<allSess.length && cnt80<2; si++) {
+        const sp = allSess[si].programs?.find(function(pr){ return pr.code===p.code; });
+        if (!sp) break;
+        const st = (sp.stos||[]).flatMap(function(s){ return [...(s.trials||[]),...(s.blocks||[]).flat()]; }).filter(Boolean);
+        if (st.length && Math.round(st.filter(function(t){return t==='+'}).length/st.length*100)>=80) cnt80++;
+        else break;
+      }
+      consecutive80 = cnt80 >= 2;
+    }
+
     let cls = 'prog-tab';
     if (p.code===S.current) cls+=' active';
     else if (mastery) cls+=' mastery';
@@ -1812,6 +1890,7 @@ function renderTabs() {
       ondragleave="tabDragLeave(event)">
       <span class="pt-code">${p.code}</span>
       <span class="pt-name" style="font-size:10px;color:var(--text2);margin-left:2px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</span>
+      ${consecutive80 ? `<span style="font-size:9px;background:var(--green);color:#fff;border-radius:3px;padding:1px 4px;margin-left:2px">🌟2회</span>` : ''}
       ${pct!==null
         ? `<span class="pt-pct" style="color:${pctColor}">${pct}%</span>`
         : `<span class="pt-cnt">${curTrials.length}/10</span>`
@@ -1831,7 +1910,8 @@ function handleTabClick(e, code) {
 
 function removeTabByCode(code) {
   const p = S.board[code];
-  // 기록이 있으면 아카이브로 이동
+  if (!confirm((p?.name||code)+' 을 보드에서 제거할까요?\n(아카이브에 저장됩니다)')) return;
+  // 항상 아카이브로 이동
   if (p && S.child) {
     const childId = S.child.id;
     if (!DB.archivedProgs[childId]) DB.archivedProgs[childId] = [];
@@ -2498,6 +2578,7 @@ function sessionDeleteSTO(code, stoIdx) {
   const p = S.board[code]; if (!p) return;
   if (p.stos.length <= 1) { showToast('STO가 1개 이하일 때는 삭제할 수 없어요','err'); return; }
   const sto = p.stos[stoIdx];
+  if (!confirm(sto.name+' STO를 제거할까요?\n(아카이브에 저장됩니다)')) return;
 
   // 기록 여부 관계없이 항상 아카이브로 이동
   if (S.child) {
