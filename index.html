@@ -20,10 +20,15 @@
 body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;font-size:14px}
 ::-webkit-scrollbar{width:4px;height:4px}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
-.app{display:flex;height:100vh;overflow:hidden}
+.app{display:flex;height:100vh;overflow:hidden;position:relative}
 
 /* ── 사이드바 ── */
-.sb{width:220px;min-width:220px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.sb{width:220px;min-width:220px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;transition:width .2s,min-width .2s}
+.sb.collapsed{width:40px;min-width:40px}
+.sb.collapsed .sb-top,.sb.collapsed .sb-child,.sb.collapsed .sb-nav,.sb.collapsed .sb-foot{opacity:0;pointer-events:none}
+.sb-toggle{position:fixed;top:10px;left:208px;width:22px;height:22px;background:var(--bg2);border:1px solid var(--border);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:10px;z-index:100;color:var(--text2);transition:left .2s}
+.sb.collapsed ~ .main .topbar,.sb.collapsed~* {margin-left:0}
+body.sb-collapsed .sb-toggle{left:28px}
 .sb-top{padding:16px 14px 12px;border-bottom:1px solid var(--border)}
 .sb-logo{font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--accent);text-transform:uppercase}
 .sb-sub{font-size:10px;color:var(--text3);margin-top:2px}
@@ -237,7 +242,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 <body>
 <div class="app">
 
-<div class="sb">
+<div class="sb" id="sidebar">
+  <button class="sb-toggle" id="sbToggle" onclick="toggleSidebar()" title="사이드바 접기">◀</button>
   <div class="sb-top">
     <div class="sb-logo">ABA Session</div>
     <div class="sb-sub">세션 기록 시스템</div>
@@ -683,7 +689,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 // ════ Supabase 설정 ════
 // 아래 두 값을 본인 Supabase 프로젝트의 값으로 교체하세요
 const SUPA_URL = 'https://fkjjbgontwvznouxsmjl.supabase.co';
-const SUPA_KEY = 'sb_publishable_3Lmh-PCShmYIcNpm9LcSDA_OtnpB9jj'; // 재발급한 키 입력
+const SUPA_KEY = 'YOUR_PUBLISHABLE_KEY_HERE'; // 재발급한 키 입력
 
 const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
 
@@ -892,7 +898,8 @@ async function saveAppDataToCloud() {
       masteredProgs: DB.masteredProgs || {},
       dailyNotes: DB.dailyNotes || {},
       stoStatus: DB.stoStatus || {},
-      archivedProgs: DB.archivedProgs || {}
+      archivedProgs: DB.archivedProgs || {},
+      goalMatrix: goalMatrixStore || {}
     };
     const { error } = await supa.from('app_settings').upsert({
       key: 'app_data',
@@ -927,6 +934,9 @@ async function loadAppDataFromCloud() {
     }
     if (appData?.archivedProgs) {
       DB.archivedProgs = { ...(DB.archivedProgs||{}), ...appData.archivedProgs };
+    }
+    if (appData?.goalMatrix) {
+      Object.assign(goalMatrixStore, appData.goalMatrix);
     }
     if (appData?.masteredProgs) {
       // 기존 로컬 데이터와 병합 (클라우드 우선, 로컬 추가분 유지)
@@ -1440,7 +1450,28 @@ let S = {
 };
 
 // ════ 초기화 ════
+// ════ 사이드바 접기 ════
+function toggleSidebar() {
+  const sb = document.getElementById('sidebar');
+  const btn = document.getElementById('sbToggle');
+  const collapsed = sb.classList.toggle('collapsed');
+  document.body.classList.toggle('sb-collapsed', collapsed);
+  btn.style.left = collapsed ? '28px' : '208px';
+  btn.textContent = collapsed ? '▶' : '◀';
+  btn.title = collapsed ? '사이드바 펼치기' : '사이드바 접기';
+  try { localStorage.setItem('sb_collapsed', collapsed?'1':'0'); } catch(e){}
+}
+
 async function init() {
+  // 사이드바 상태 복원
+  try {
+    if (localStorage.getItem('sb_collapsed')==='1') {
+      document.getElementById('sidebar')?.classList.add('collapsed');
+      document.body.classList.add('sb-collapsed');
+      const btn = document.getElementById('sbToggle');
+      if (btn) { btn.style.left='28px'; btn.textContent='▶'; btn.title='사이드바 펼치기'; }
+    }
+  } catch(e){}
   load();  // 로컬스토리지 먼저 로드
   const today = new Date().toISOString().split('T')[0];
   document.getElementById('sDate').value = today;
@@ -1654,6 +1685,7 @@ function saveGoalMatrix() {
   });
   goalMatrixStore[S.child.id] = data;
   try { localStorage.setItem('gm_'+S.child.id, JSON.stringify(data)); } catch(e){}
+  saveAppDataToCloud(); // Supabase 동기화
 }
 
 function loadGoalMatrixFromStorage(childId) {
