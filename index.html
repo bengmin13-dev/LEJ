@@ -689,7 +689,7 @@ body.sb-collapsed .sb-toggle{left:28px}
 // ════ Supabase 설정 ════
 // 아래 두 값을 본인 Supabase 프로젝트의 값으로 교체하세요
 const SUPA_URL = 'https://fkjjbgontwvznouxsmjl.supabase.co';
-const SUPA_KEY = 'sb_publishable_3Lmh-PCShmYIcNpm9LcSDA_OtnpB9jj'; // 재발급한 키 입력
+const SUPA_KEY = 'YOUR_PUBLISHABLE_KEY_HERE'; // 재발급한 키 입력
 
 const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
 
@@ -1855,10 +1855,16 @@ function renderGoalMatrix() {
 
 
 function selectProgFromMatrix(code) {
-  if (!S.board[code]) { showToast('세션에 없는 과제예요. 먼저 추가해주세요','err'); return; }
-  S.current = code;
   go('rec');
+  if (!S.board[code]) {
+    showToast(code+' 과제가 현재 세션에 없어요','err');
+    return;
+  }
+  S.current = code;
   renderTabs(); renderRecPanel();
+  // 해당 탭으로 스크롤
+  const tab = document.querySelector('[data-code="'+code+'"]');
+  if (tab) tab.scrollIntoView({block:'nearest',inline:'center'});
 }
 
 function renderTabs() {
@@ -1924,7 +1930,10 @@ function renderTabs() {
       ondragstart="tabDragStart(event,'${p.code}')"
       ondragover="tabDragOver(event)"
       ondrop="tabDrop(event,'${p.code}')"
-      ondragleave="tabDragLeave(event)">
+      ondragleave="tabDragLeave(event)"
+      ontouchstart="tabTouchStart(event,'${p.code}')"
+      ontouchmove="tabTouchMove(event)"
+      ontouchend="tabTouchEnd(event,'${p.code}')">
       <span class="pt-code">${p.code}</span>
       <span class="pt-name" style="font-size:10px;color:var(--text2);margin-left:2px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</span>
       ${consecutive80 ? `<span style="font-size:9px;background:var(--green);color:#fff;border-radius:3px;padding:1px 4px;margin-left:2px">🌟2회</span>` : ''}
@@ -1966,10 +1975,52 @@ function removeTabByCode(code) {
   if (S.current===code) S.current=Object.keys(S.board)[0]||null;
   S.tabOrder = S.tabOrder.filter(c=>c!==code);
   renderTabs(); renderRecPanel();
+  // 삭제 즉시 세션 저장 (자동 로드 시 복원 방지)
+  autoSave();
 }
 
 // 드래그 앤 드롭
 let _dragCode = null;
+// ════ 아이패드 터치 드래그 ════
+let _touchDragCode = null;
+let _touchClone = null;
+
+function tabTouchStart(e, code) {
+  _touchDragCode = code;
+  const el = e.currentTarget;
+  // 시각적 클론 생성
+  _touchClone = el.cloneNode(true);
+  _touchClone.style.cssText = 'position:fixed;opacity:0.8;pointer-events:none;z-index:9999;background:var(--bg3);border-radius:8px;padding:6px 10px;font-size:11px;';
+  document.body.appendChild(_touchClone);
+}
+
+function tabTouchMove(e) {
+  if (!_touchClone) return;
+  e.preventDefault();
+  const t = e.touches[0];
+  _touchClone.style.left = (t.clientX - 40) + 'px';
+  _touchClone.style.top = (t.clientY - 20) + 'px';
+}
+
+function tabTouchEnd(e, code) {
+  if (_touchClone) { _touchClone.remove(); _touchClone = null; }
+  if (!_touchDragCode) return;
+  const t = e.changedTouches[0];
+  const el = document.elementFromPoint(t.clientX, t.clientY);
+  const targetTab = el?.closest('[data-code]');
+  const targetCode = targetTab?.dataset?.code;
+  if (targetCode && targetCode !== _touchDragCode) {
+    const fromIdx = S.tabOrder.indexOf(_touchDragCode);
+    const toIdx = S.tabOrder.indexOf(targetCode);
+    if (fromIdx!==-1 && toIdx!==-1) {
+      S.tabOrder.splice(fromIdx, 1);
+      S.tabOrder.splice(toIdx, 0, _touchDragCode);
+      renderTabs();
+    }
+  }
+  _touchDragCode = null;
+}
+
 function tabDragStart(e, code) {
   _dragCode = code;
   e.target.classList.add('dragging');
@@ -2919,14 +2970,18 @@ function loadSessionFromArchive(sessId, dateStr) {
   (sess.programs||[]).forEach(p => {
     S.board[p.code] = {
       code: p.code, name: p.name, source: p.source||'peak',
-      stos: (p.stos||[]).map(s=>({
-        name: s.name||s,
-        trials: [...(s.trials||[])],
-        blocks: (s.blocks||[]).map(b=>[...b]),
-        memo: s.memo||'',
-        taskMemo: s.taskMemo||'',
-        status: s.status||'active'
-      })),
+      stos: (p.stos||[]).map((s,si)=>{
+        const stoStatusMap = (S.child && DB.stoStatus[S.child.id]) ? DB.stoStatus[S.child.id] : {};
+        const statusKey = p.code + '_' + si;
+        return {
+          name: s.name||s,
+          trials: [...(s.trials||[])],
+          blocks: (s.blocks||[]).map(b=>[...b]),
+          memo: s.memo||'',
+          taskMemo: s.taskMemo||'',
+          status: stoStatusMap[statusKey] || s.status || 'active'
+        };
+      }),
       currentSto: 0, memo: p.memo||''
     };
     const chip = document.getElementById('ch-'+p.code);
